@@ -85,6 +85,10 @@ static Dict_t *agdictof(Agraph_t * g, int kind)
 static Agsym_t *agnewsym(Agraph_t * g, const char *name, const char *value,
                          int id, int kind) {
     Agsym_t *sym = gv_alloc(sizeof(Agsym_t));
+
+    /* use root graph for refcount to avoid use-after-free bugs */
+    g = agroot(g);
+    sym->root_g = g;
     sym->kind = (unsigned char) kind;
     sym->name = agstrdup(g, name);
     sym->defval = agstrdup(g, value);
@@ -218,11 +222,13 @@ static void freeattr(Agobj_t * obj, Agattr_t * attr)
 }
 
 static void freesym(void *obj) {
-    Agsym_t *sym;
+    Agsym_t *sym = obj;
+    Agraph_t *g = sym->root_g;
+    assert(g != NULL);
+    assert(agroot(g) == g);
 
-    sym = obj;
-    agstrfree(Ag_G_global, sym->name);
-    agstrfree(Ag_G_global, sym->defval);
+    agstrfree(g, sym->name);
+    agstrfree(g, sym->defval);
     free(sym);
 }
 
@@ -383,7 +389,6 @@ int agraphattr_delete(Agraph_t * g)
     Agdatadict_t *dd;
     Agattr_t *attr;
 
-    Ag_G_global = g;
     if ((attr = agattrrec(g))) {
 	freeattr((Agobj_t *) g, attr);
 	agdelrec(g, attr->h.name);

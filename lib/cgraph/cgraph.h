@@ -638,6 +638,7 @@ struct Agattr_s { /* dynamic string attributes */
 /// symbol in Agattr_s.dict
 struct Agsym_s {
   Dtlink_t link;
+  Agraph_t *root_g;    /* root graph for resource reference counting */
   char *name;          /* attribute's name */
   char *defval;        /* its default value for initialization */
   int id;              ///< index in Agattr_s.str
