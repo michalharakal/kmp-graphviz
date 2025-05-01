@@ -15,7 +15,7 @@ FIXDIR=~/FIX/macOS
 GV_DIR=../..
 DOT=dot
 
-UNAME_M=$(shell uname -m)
+UNAME_M:=$(shell uname -m)
 ARCH=-arch $(UNAME_M)
 
 #
@@ -50,12 +50,16 @@ dot.pkg: .$(PREFIX)/bin/$(DOT) Scripts/postinstall
 	rm -rf .$(PREFIX)/lib/graphviz/*.la
 	rm -rf .$(PREFIX)/lib/graphviz/tcl/libtcldot_builtin.*
 #	cp $(FIXDIR)/bin/fc-cache .$(PREFIX)/bin/gv-fc-cache
-	
+	cd .$(PREFIX)/bin; find . -type f -maxdepth 1 | while read a;do dyld_info -linked_dylibs $$a | sed -n -E "s|($(PREFIX))(.*)|\1\2 @executable_path/..\2 $$a|p";done | xargs -t -L1 install_name_tool -change
+	cd .$(PREFIX)/lib; find . -type f -maxdepth 1 | while read a;do dyld_info -linked_dylibs $$a | sed -n -E "s|($(PREFIX)/lib)(.*)|\1\2 @loader_path\2 $$a|p";done | xargs -t -L1 install_name_tool -change
+	cd .$(PREFIX)/lib/graphviz; find . -type f -maxdepth 1 | while read a;do dyld_info -linked_dylibs $$a | sed -n -E "s|($(PREFIX)/lib)(.*)|\1\2 @loader_path/..\2 $$a|p";done | xargs -t -L1 install_name_tool -change
+	cd Release/Graphviz.app/Contents/MacOS; dyld_info -linked_dylibs Graphviz | sed -n -E "s|($(PREFIX)/lib)(.*)|\1\2 @rpath\2 Graphviz|p" | xargs -t -L1 install_name_tool -change
+
 Release/Graphviz.app: ../*.m ../*.h $(GV_DIR)/cmd/dot/.libs/$(DOT)
 	@echo
 	@echo BUILDING GRAPHVIZ GUI...
 	@echo
-	"$(XCODEBUILD)" -project ../graphviz.xcodeproj -configuration Release VALID_ARCHS=$(UNAME_M) ALWAYS_SEARCH_USER_PATHS=NO MACOSX_DEPLOYMENT_TARGET=10.13
+	"$(XCODEBUILD)" -project ../graphviz.xcodeproj -configuration Release VALID_ARCHS=$(UNAME_M) ALWAYS_SEARCH_USER_PATHS=NO MACOSX_DEPLOYMENT_TARGET=10.13 LD_RUNPATH_SEARCH_PATHS=$(PREFIX)/lib
 
 Scripts/postinstall:
 	@echo

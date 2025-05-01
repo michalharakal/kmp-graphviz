@@ -50,6 +50,7 @@ Makefile.in
 /config.h.in~
 /config.log
 /config.status
+/configure~
 /libtool
 /redhat/graphviz.spec.fedora
 /redhat/graphviz.spec.rhel
