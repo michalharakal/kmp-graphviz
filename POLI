@@ -1,0 +1,42 @@
+digraph folyamat {
+    rankdir=LR;
+    node [shape=box, style="rounded,filled", fillcolor=lightblue, fontname="Arial", fontsize=11];
+
+    // Jelenlegi állapot
+    subgraph cluster_current {
+        label="Jelenlegi állapot";
+        style=dashed;
+        a1 [label="Alapanyag beszerzés\n- Korlátozott biodegradált arány\n- Manuális rendelés"];
+        a2 [label="Gyártás előkészítés\n- Papíralapú tervezés\n- Hosszú beállítási idő (120 perc)"];
+        a3 [label="Gyártási folyamat\n- Magas rework arány (12%)\n- Gyakori állásidők\n- Korlátozott nyomonkövethetőség"];
+        a4 [label="Minőségellenőrzés\n- Szúrópróbaszerű\n- Utólagos ellenőrzés\n- Manuális dokumentáció"];
+        a5 [label="Csomagolás és kiszállítás\n- Manuális nyilvántartás\n- Papíralapú szállít.lev\n- Korlátozott visszakövethetőség"];
+        a1 -> a2 -> a3 -> a4 -> a5;
+    }
+
+    // Fejlesztett állapot
+    subgraph cluster_improved {
+        label="Fejlesztett állapot";
+        style=dashed;
+        b1 [label="Optimalizált beszerzés\n- Bővített szállítói hálózat\n- Automatizált rendelés", fillcolor=lightgreen];
+        b2 [label="Digitalizált előkészítés\n- Digitális tervezés\n- SMED módszerrel csökkentett idő (30 perc)", fillcolor=lightgreen];
+        b3 [label="Lean gyártási folyamat\n- Minimalizált rework (max. 3%)\n- Andon rendszer\n- Valós idejű digitális nyomon követés", fillcolor=lightgreen];
+        b4 [label="Integrált minőségbiztosítás\n- Folyamatos monitoring\n- Prediktív elemzés\n- Automatikus adatrögzítés", fillcolor=lightgreen];
+        b5 [label="Optimalizált logisztika\n- Integrált nyilvántartás\n- Digitális dokumentáció\n- Teljes termékéletút nyomon követés", fillcolor=lightgreen];
+        b1 -> b2 -> b3 -> b4 -> b5;
+    }
+
+    // Párhuzamos lépések azonos szintre helyezése
+    {rank=same; a1; b1;}
+    {rank=same; a2; b2;}
+    {rank=same; a3; b3;}
+    {rank=same; a4; b4;}
+    {rank=same; a5; b5;}
+
+    // Opcionálisan: összekötő, magyarázó nyilak a jelenlegi és fejlesztett állapot között
+    a1 -> b1 [style=dotted, color=gray, arrowhead=none];
+    a2 -> b2 [style=dotted, color=gray, arrowhead=none];
+    a3 -> b3 [style=dotted, color=gray, arrowhead=none];
+    a4 -> b4 [style=dotted, color=gray, arrowhead=none];
+    a5 -> b5 [style=dotted, color=gray, arrowhead=none];
+}
