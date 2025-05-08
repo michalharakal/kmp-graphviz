@@ -8,7 +8,6 @@ PKGBUILD=pkgbuild
 # prefix
 
 PREFIX=/usr/local
-FIXDIR=~/FIX/macOS
 
 # base
 
@@ -49,7 +48,6 @@ dot.pkg: .$(PREFIX)/bin/$(DOT) Scripts/postinstall
 	rm -rf .$(PREFIX)/lib/*.la
 	rm -rf .$(PREFIX)/lib/graphviz/*.la
 	rm -rf .$(PREFIX)/lib/graphviz/tcl/libtcldot_builtin.*
-#	cp $(FIXDIR)/bin/fc-cache .$(PREFIX)/bin/gv-fc-cache
 	cd .$(PREFIX)/bin; find . -type f -maxdepth 1 | while read a;do dyld_info -linked_dylibs $$a | sed -n -E "s|($(PREFIX))(.*)|\1\2 @executable_path/..\2 $$a|p";done | xargs -t -L1 install_name_tool -change
 	cd .$(PREFIX)/lib; find . -type f -maxdepth 1 | while read a;do dyld_info -linked_dylibs $$a | sed -n -E "s|($(PREFIX)/lib)(.*)|\1\2 @loader_path\2 $$a|p";done | xargs -t -L1 install_name_tool -change
 	cd .$(PREFIX)/lib/graphviz; find . -type f -maxdepth 1 | while read a;do dyld_info -linked_dylibs $$a | sed -n -E "s|($(PREFIX)/lib)(.*)|\1\2 @loader_path/..\2 $$a|p";done | xargs -t -L1 install_name_tool -change
@@ -85,7 +83,7 @@ $(GV_DIR)/Makefile: $(GV_DIR)/configure
 	@echo
 	@echo CONFIGURING GRAPHVIZ...
 	@echo
-	cd $(GV_DIR) && ./configure --prefix=$(PREFIX) --enable-swig=no --disable-dependency-tracking --with-ipsepcola --with-quartz --with-smyrna=no --disable-perl --with-extra-includedir="$(FIXDIR)/include" --with-extra-libdir="$(FIXDIR)/lib" CFLAGS="-O2 $(ARCH)" CXXFLAGS="-O2 $(ARCH)" OBJCFLAGS="-O2 $(ARCH)" LDFLAGS="$(ARCH) -Wl,-dead_strip" GDLIB_CONFIG="$(FIXDIR)/bin/gdlib-config" PKG_CONFIG="$(FIXDIR)/bin/pkg-config" PKG_CONFIG_PATH="$(FIXDIR)/lib/pkgconfig:/usr/X11/lib/pkgconfig"
+	cd $(GV_DIR) && ./configure --prefix=$(PREFIX) --enable-swig=no --disable-dependency-tracking --with-ipsepcola --with-quartz --with-smyrna=no --disable-perl CFLAGS="-O2 $(ARCH)" CXXFLAGS="-O2 $(ARCH)" OBJCFLAGS="-O2 $(ARCH)" LDFLAGS="$(ARCH) -Wl,-dead_strip"
 
 .PHONY: clean
 clean:
