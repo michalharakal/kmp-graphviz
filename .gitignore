@@ -13,6 +13,9 @@ CMakeCache.txt
 /graphviz-*/
 /graphviz-*.pkg
 
+# product of: ci/build.sh
+/Packages
+
 cmd/gvedit/moc_csettings.cpp
 cmd/gvedit/moc_imageviewer.cpp
 cmd/gvedit/moc_mainwindow.cpp

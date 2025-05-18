@@ -95,7 +95,8 @@ else
         make
         make install
         python3 ../ci/make_relocatable.py $( pwd )/build
-        tar cfz ${DIR}/graphviz-${GV_VERSION}-${ARCH}.tar.gz --options gzip:compression-level=9 build
+        make -C macosx/build
+        tar cfz ${DIR}/graphviz-${GV_VERSION}-${ARCH}.tar.gz --options gzip:compression-level=9 -C macosx/build graphviz-${ARCH}.pkg
         popd
     elif [[ ${id} == cygwin* || ${id} == msys* ]]; then
         if [[ ${id} == msys* ]]; then
