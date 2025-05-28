@@ -1,4 +1,72 @@
-/// @file
+from graphviz import Digraph
+
+# Criando o diagrama de classes UML com base no cenário fornecido
+dot = Digraph(comment='Diagrama de Classes UML - Locadora de Veículos')
+
+# Classe Cliente
+dot.node('Cliente', '''Cliente
+- nome: String
+- cpf: String
+- telefone: String
+- email: String
++ realizarLocacao()
+''')
+
+# Classe Funcionario
+dot.node('Funcionario', '''Funcionario
+- nome: String
+- id: int
+- cargo: String
++ atenderCliente()
++ registrarLocacao()
+''')
+
+# Classe abstrata Veiculo
+dot.node('Veiculo', '''<<abstract>> Veiculo
+- modelo: String
+- marca: String
+- placa: String
+- ano: int
+- categoria: String
+- status: String
++ verificarDisponibilidade()
+''')
+
+# Subclasses de Veiculo
+dot.node('Carro', 'Carro')
+dot.node('Moto', 'Moto')
+dot.node('Caminhao', 'Caminhao')
+
+# Herança
+dot.edge('Carro', 'Veiculo', arrowhead='empty')
+dot.edge('Moto', 'Veiculo', arrowhead='empty')
+dot.edge('Caminhao', 'Veiculo', arrowhead='empty')
+
+# Classe Locacao
+dot.node('Locacao', '''Locacao
+- dataInicio: Date
+- dataFim: Date
+- valor: float
++ calcularValor()
+''')
+
+# Classe Pagamento
+dot.node('Pagamento', '''Pagamento
+- tipo: String
+- status: String
+''')
+
+# Relacionamentos
+dot.edge('Cliente', 'Locacao', label='1..*')
+dot.edge('Veiculo', 'Locacao', label='1..*')
+dot.edge('Locacao', 'Pagamento', label='1')
+dot.edge('Funcionario', 'Locacao', label='1..*')
+
+# Renderizar e salvar
+output_path = "/mnt/data/Diagrama_Classes_Locadora_Veiculos"
+dot.render(output_path, format='pdf', cleanup=True)
+
+output_path + ".pdf"/// @file
 /// @brief reads graphs with @ref gvNextInputGraph and renders with
 /// @ref gvLayoutJobs, @ref gvRenderJobs
 
