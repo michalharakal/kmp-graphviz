@@ -55,7 +55,6 @@ target_include_directories(test_common SYSTEM PRIVATE
 target_link_libraries(test_common PUBLIC
   gvplugin_core
   gvplugin_dot_layout
-  gvplugin_gd
   gvplugin_neato_layout
   gvplugin_pango
   gvplugin_vt
@@ -65,6 +64,12 @@ target_link_libraries(test_common PUBLIC
   gvc
   gvc++
 )
+
+if (with_gvedit)
+target_link_libraries(test_common PUBLIC
+  gvplugin_gd
+)
+endif()
 
 # common steps for creating a test case
 macro(CREATE_TEST testname)
@@ -134,6 +139,7 @@ CREATE_TEST(neatopack)
 CREATE_TEST(node_color)
 CREATE_TEST(node_fillcolor)
 CREATE_TEST(node_penwidth)
+CREATE_TEST(out_of_bounds)
 CREATE_TEST(rankdir)
 CREATE_TEST(simple)
 CREATE_TEST(subgraph_layout)
