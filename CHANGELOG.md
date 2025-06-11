@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased (13.0.0)]
+## [Unreleased (13.0.1)]
+
+### Fixed
+
+- Graphs with large weights no longer trigger double `free`s. #1494, #2331
+
+## [13.0.0] – 2025-06-08
 
 ### Added
 
@@ -111,6 +117,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: The function `aginternalmapclearlocalnames` has been removed.
   #2664
 - In gvpr programs, the `#` and `in` operators now work on `ARGV`. #2582
+- **Breaking**: `xdot_color_stop.frac` is now a `double`.
+- The GD plugin’s PNG output (`-Tpng:cairo:gd`) now sets DPI in the written PNG.
+  #1617
+- The GDI+ plugin’s output (`-T*:cairo:gdiplus`) now sets DPI in the written
+  output. #1617
+- The Quartz plugin’s PNG output (`-Tpng:cairo:quartz`) now sets DPI in the
+  written PNG. #1617
+- **Breaking**: The `agconcat` function now takes an extra `filename` parameter.
+  If you are updating calling code, passing `NULL` for this parameter is a
+  reasonable migration strategy.
+- **Breaking**: The `agsetfile` function has been removed.
+- The GDK plugin’s output (`-T*:cairo:gdk`) now sets DPI in written JPEGs and
+  PNGs. #1617
+- **Breaking**: The `Agsym_t` struct has gained a new member, `owner`.
 
 ### Fixed
 
@@ -183,6 +203,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Using GVPR to set a default attribute on a subgraph whose root graph has no
   default for that attribute no longer incorrectly sets the default on the root
   graph. #2639
+- Mingle no longer crashes when doing Y coordinate search. This was a regression
+  in Graphviz 2.47.0. #2599
+- Smyrna no longer frees invalid pointers when processing xdot input. This was a
+  regression in Graphviz 2.50.0. #2687
+- Smyrna no longer crashes when processing xdot gradient colors or font
+  characters. This was a regression in Graphviz 2.34.0.
 
 ## [12.2.1] – 2024-12-07
 
@@ -3174,7 +3200,8 @@ March 13, 2000: Use AM_PROG_LIBTOOL instead of AC_PROG_LIBTOOL
    in configure.in.  John Ellson <ellson@graphviz.org>
 ```
 
-[Unreleased (13.0.0)]: https://gitlab.com/graphviz/graphviz/compare/12.2.1...main
+[Unreleased (13.0.1)]: https://gitlab.com/graphviz/graphviz/compare/13.0.0...main
+[13.0.0]: https://gitlab.com/graphviz/graphviz/compare/12.2.1...13.0.0
 [12.2.1]: https://gitlab.com/graphviz/graphviz/compare/12.2.0...12.2.1
 [12.2.0]: https://gitlab.com/graphviz/graphviz/compare/12.1.2...12.2.0
 [12.1.2]: https://gitlab.com/graphviz/graphviz/compare/12.1.1...12.1.2

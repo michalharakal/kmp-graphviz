@@ -27,8 +27,6 @@
 
 /* to create a graph's data dictionary */
 
-#define MINATTR	4		/* minimum allocation */
-
 static void freesym(void *obj);
 
 Dtdisc_t AgDataDictDisc = {
@@ -90,6 +88,7 @@ static Agsym_t *agnewsym(Agraph_t * g, const char *name, const char *value,
     sym->name = agstrdup(g, name);
     sym->defval = is_html ? agstrdup_html(g, value) : agstrdup(g, value);
     sym->id = id;
+    sym->owner = g;
     return sym;
 }
 
@@ -161,7 +160,7 @@ Agsym_t *agattrsym(void *obj, char *name)
 
 /* to create a graph's, node's edge's string attributes */
 
-char *AgDataRecName = "_AG_strdata";
+const char AgDataRecName[] = "_AG_strdata";
 
 static int topdictsize(Agobj_t * obj)
 {
@@ -174,7 +173,6 @@ static int topdictsize(Agobj_t * obj)
 /* g can be either the enclosing graph, or ProtoGraph */
 static Agrec_t *agmakeattrs(Agraph_t * context, void *obj)
 {
-    int sz;
     Agattr_t *rec;
     Agsym_t *sym;
     Dict_t *datadict;
@@ -184,10 +182,7 @@ static Agrec_t *agmakeattrs(Agraph_t * context, void *obj)
     assert(datadict);
     if (rec->dict == NULL) {
 	rec->dict = agdictof(agroot(context), AGTYPE(obj));
-	/* don't malloc(0) */
-	sz = topdictsize(obj);
-	if (sz < MINATTR)
-	    sz = MINATTR;
+	const int sz = topdictsize(obj);
 	rec->str = gv_calloc((size_t)sz, sizeof(char *));
 	/* doesn't call agxset() so no obj-modified callbacks occur */
 	for (sym = dtfirst(datadict); sym; sym = dtnext(datadict, sym)) {
@@ -200,7 +195,7 @@ static Agrec_t *agmakeattrs(Agraph_t * context, void *obj)
     } else {
 	assert(rec->dict == datadict);
     }
-    return (Agrec_t *) rec;
+    return &rec->h;
 }
 
 static void freeattr(Agobj_t * obj, Agattr_t * attr)
@@ -216,11 +211,9 @@ static void freeattr(Agobj_t * obj, Agattr_t * attr)
 }
 
 static void freesym(void *obj) {
-    Agsym_t *sym;
-
-    sym = obj;
-    agstrfree(Ag_G_global, sym->name, false);
-    agstrfree(Ag_G_global, sym->defval, aghtmlstr(sym->defval));
+    Agsym_t *const sym = obj;
+    agstrfree(sym->owner, sym->name, false);
+    agstrfree(sym->owner, sym->defval, aghtmlstr(sym->defval));
     free(sym);
 }
 
@@ -233,9 +226,8 @@ static void addattr(Agraph_t *g, Agobj_t *obj, void *symbol) {
     Agsym_t *const sym = symbol;
     Agattr_t *attr = agattrrec(obj);
     assert(attr != NULL);
-    if (sym->id >= MINATTR)
-	attr->str = gv_recalloc(attr->str, (size_t)sym->id, (size_t)sym->id + 1,
-	                        sizeof(char *));
+    attr->str = gv_recalloc(attr->str, (size_t)sym->id, (size_t)sym->id + 1,
+                            sizeof(char *));
     if (aghtmlstr(sym->defval)) {
 	attr->str[sym->id] = agstrdup_html(g, sym->defval);
     } else {
@@ -303,7 +295,7 @@ static Agsym_t *setattr(Agraph_t * g, int kind, char *name, const char *value,
 	    rv = lsym;
 	} else {		/* new global definition */
 	    Dict_t *rdict = agdictof(root, kind);
-	    Agsym_t *rsym = agnewsym(g, name, value, is_html, dtsize(rdict), kind);
+	    Agsym_t *rsym = agnewsym(root, name, value, is_html, dtsize(rdict), kind);
 	    dtinsert(rdict, rsym);
 	    switch (kind) {
 	    case AGRAPH:
@@ -415,7 +407,6 @@ int agraphattr_delete(Agraph_t * g)
     Agdatadict_t *dd;
     Agattr_t *attr;
 
-    Ag_G_global = g;
     if ((attr = agattrrec(g))) {
 	freeattr(&g->base, attr);
 	agdelrec(g, attr->h.name);
@@ -566,9 +557,7 @@ int agxset_html(void *obj, Agsym_t *sym, const char *value) {
 }
 
 int agsafeset_text(void *obj, char *name, const char *value, const char *def) {
-    Agsym_t *a;
-
-    a = agattr_text(agraphof(obj), AGTYPE(obj), name, NULL);
+    Agsym_t *a = agattr_text(agraphof(obj), AGTYPE(obj), name, NULL);
     if (!a)
 	a = agattr_text(agraphof(obj), AGTYPE(obj), name, def);
     return agxset(obj, a, value);

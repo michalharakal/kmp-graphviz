@@ -80,7 +80,7 @@ $(GV_DIR)/cmd/dot/.libs/$(DOT): $(GV_DIR)/Makefile
 	if [[ -e $@ ]]; then $(MAKE) -C $(GV_DIR) clean; fi
 	$(MAKE) -C $(GV_DIR)/tclpkg/tclstubs
 	$(MAKE) -C $(GV_DIR)
-	
+
 $(GV_DIR)/Makefile: $(GV_DIR)/configure
 	@echo
 	@echo CONFIGURING GRAPHVIZ...

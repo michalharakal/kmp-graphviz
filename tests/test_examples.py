@@ -88,10 +88,6 @@ def test_compile_example(src):
 def test_gvpr_example(src):
     """check GVPR can parse the given example"""
 
-    # FIXME: remove when https://gitlab.com/graphviz/graphviz/-/issues/1784 is fixed
-    if platform.system() == "Windows" and src in ["bbox", "col"]:
-        pytest.skip('GVPR tests "bbox" and "col" hangs on Windows builds (#1784)')
-
     # construct a relative path to the example because gvpr on Windows does not
     # support absolute paths (#1780)
     path = Path("cmd/gvpr/lib") / src
@@ -102,12 +98,6 @@ def test_gvpr_example(src):
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
-# FIXME: Remove skip when
-# https://gitlab.com/graphviz/graphviz/-/issues/1882 is fixed
-@pytest.mark.skipif(
-    platform.system() == "Windows" and platform.machine() in ("AMD64", "x86_64"),
-    reason="test_gvpr_clustg fails with 64-bit gvpr on Windows (#1882)",
-)
 def test_gvpr_clustg():
     """check cmd/gvpr/lib/clustg works"""
 

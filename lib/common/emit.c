@@ -18,6 +18,7 @@
 #include <assert.h>
 #include <float.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
@@ -148,15 +149,13 @@ void pop_obj_state(GVJ_t *job)
 
 /* Store image map data into job, substituting for node, edge, etc.
  * names.
- * Return 1 if an assignment was made for url or tooltip or target.
+ * @return True if an assignment was made for ID, URL, tooltip, or target
  */
-int
-initMapData (GVJ_t* job, char* lbl, char* url, char* tooltip, char* target, char *id,
-  void* gobj)
-{
+bool initMapData(GVJ_t *job, char *lbl, char *url, char *tooltip, char *target,
+                 char *id, void *gobj) {
     obj_state_t *obj = job->obj;
     int flags = job->flags;
-    int assigned = 0;
+    bool assigned = false;
 
     if ((flags & GVRENDER_DOES_LABELS) && lbl)
         obj->label = lbl;
@@ -164,23 +163,23 @@ initMapData (GVJ_t* job, char* lbl, char* url, char* tooltip, char* target, char
         obj->id = strdup_and_subst_obj(id, gobj);
 	if (url && url[0]) {
             obj->url = strdup_and_subst_obj(url, gobj);
-	    assigned = 1;
         }
+        assigned = true;
     }
     if (flags & GVRENDER_DOES_TOOLTIPS) {
         if (tooltip && tooltip[0]) {
             obj->tooltip = strdup_and_subst_obj(tooltip, gobj);
             obj->explicit_tooltip = true;
-	    assigned = 1;
+	    assigned = true;
         }
         else if (obj->label) {
             obj->tooltip = gv_strdup(obj->label);
-	    assigned = 1;
+	    assigned = true;
         }
     }
     if ((flags & GVRENDER_DOES_TARGETS) && target && target[0]) {
         obj->target = strdup_and_subst_obj(target, gobj);
-	assigned = 1;
+	assigned = true;
     }
     return assigned;
 }
@@ -1404,12 +1403,11 @@ static pointf *copyPts(xdot_point *inpts, size_t numpts) {
 static void emit_xdot (GVJ_t * job, xdot* xd)
 {
     int image_warn = 1;
-    exdot_op* op;
     int angle;
     char** styles = NULL;
     int filled = FILL;
 
-    op = (exdot_op*)(xd->ops);
+    exdot_op *op = (exdot_op*)xd->ops;
     for (size_t i = 0; i < xd->cnt; i++) {
 	switch (op->op.kind) {
 	case xd_filled_ellipse :
@@ -1464,33 +1462,28 @@ static void emit_xdot (GVJ_t * job, xdot* xd)
 	    filled = FILL;
 	    break;
 	case xd_grad_fill_color : 
-	    {
-		char* clr0;
-		char* clr1;
-		float frac;
-		if (op->op.u.grad_color.type == xd_radial) {
-		    xdot_radial_grad* p = &op->op.u.grad_color.u.ring;
-		    clr0 = p->stops[0].color;
-		    clr1 = p->stops[1].color;
-		    frac = p->stops[1].frac;
-		    if (p->x1 == p->x0 && p->y1 == p->y0)
-			angle = 0;
-		    else
-			angle = (int)(180.0*acos((p->x0 - p->x1)/p->r0)/M_PI);
-        	    gvrender_set_fillcolor(job, clr0);
-		    gvrender_set_gradient_vals(job, clr1, angle, frac);
-		    filled = RGRADIENT;
+	    if (op->op.u.grad_color.type == xd_radial) {
+		xdot_radial_grad* p = &op->op.u.grad_color.u.ring;
+		char *const clr0 = p->stops[0].color;
+		char *const clr1 = p->stops[1].color;
+		const double frac = p->stops[1].frac;
+		if (p->x1 == p->x0 && p->y1 == p->y0) {
+		    angle = 0;
+		} else {
+		    angle = (int)(180 * acos((p->x0 - p->x1) / p->r0) / M_PI);
 		}
-		else {
-		    xdot_linear_grad* p = &op->op.u.grad_color.u.ling;
-		    clr0 = p->stops[0].color;
-		    clr1 = p->stops[1].color;
-		    frac = p->stops[1].frac;
-		    angle = (int)(180.0*atan2(p->y1-p->y0,p->x1-p->x0)/M_PI);
-        	    gvrender_set_fillcolor(job, clr0);
-		    gvrender_set_gradient_vals(job, clr1, angle, frac);
-		    filled = GRADIENT;
-		}
+		gvrender_set_fillcolor(job, clr0);
+		gvrender_set_gradient_vals(job, clr1, angle, frac);
+		filled = RGRADIENT;
+	    } else {
+		xdot_linear_grad* p = &op->op.u.grad_color.u.ling;
+		char *const clr0 = p->stops[0].color;
+		char *const clr1 = p->stops[1].color;
+		const double frac = p->stops[1].frac;
+		angle = (int)(180 * atan2(p->y1 - p->y0, p->x1 - p->x0) / M_PI);
+		gvrender_set_fillcolor(job, clr0);
+		gvrender_set_gradient_vals(job, clr1, angle, frac);
+		filled = GRADIENT;
 	    }
 	    break;
 	case xd_grad_pen_color :
@@ -2826,9 +2819,8 @@ textBB (double x, double y, textspan_t* span)
     return bb;
 }
 
-static void
-freePara (exdot_op* op)
-{
+static void freePara(xdot_op *xop) {
+    exdot_op *const op = (exdot_op *)((char *)xop - offsetof(exdot_op, op));
     if (op->op.kind == xd_text)
 	free_textspan (op->span, 1);
 }
@@ -2844,7 +2836,7 @@ boxf xdotBB (Agraph_t* g)
     boxf bb = GD_bb(g);
     xdot* xd = GD_drawing(g)->xdots;
     textfont_t tf, null_tf = {0};
-    int fontflags = 0;
+    unsigned fontflags = 0;
 
     if (!xd) return bb;
 
@@ -2893,7 +2885,7 @@ boxf xdotBB (Agraph_t* g)
 	    expandBB (&bb, bb0.LL);
 	    expandBB (&bb, bb0.UR);
 	    if (!xd->freefunc)
-		xd->freefunc = (freefunc_t)freePara;
+		xd->freefunc = freePara;
 	    break;
 	case xd_font :
 	    fontsize = op->op.u.font.size;
@@ -3569,7 +3561,6 @@ void emit_clusters(GVJ_t * job, Agraph_t * g, int flags)
 	    }
 	}
 	else if (istyle.striped) {
-	    int rv;
 	    AF[0] = GD_bb(sg).LL;
 	    AF[2] = GD_bb(sg).UR;
 	    AF[1].x = AF[2].x;
@@ -3580,8 +3571,7 @@ void emit_clusters(GVJ_t * job, Agraph_t * g, int flags)
         	gvrender_set_pencolor(job, "transparent");
 	    else
     		gvrender_set_pencolor(job, pencolor);
-	    rv = stripedBox (job, AF, fillcolor, 0);
-	    if (rv > 1)
+	    if (stripedBox (job, AF, fillcolor, 0) > 1)
 		agerr (AGPREV, "in cluster %s\n", agnameof(sg));
 	    gvrender_box(job, GD_bb(sg), 0);
 	}

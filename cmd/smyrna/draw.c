@@ -19,6 +19,7 @@ XDOT DRAWING FUNCTIONS, maybe need to move them somewhere else
 #include <glcomp/glutils.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <util/unreachable.h>
 #include <util/xml.h>
@@ -119,17 +120,12 @@ static void set_options(int param)
 
 }
 
-static void DrawBeziers(sdot_op* o, int param)
-{
-    int filled;
-    xdot_op *  op=&o->op;
+static void DrawBeziers(xdot_op *op, int param) {
+    sdot_op *const o = (sdot_op *)((char *)op - offsetof(sdot_op, op));
     xdot_point* ps = op->u.bezier.pts;
     view->Topview->global_z += o->layer * LAYER_DIFF;
 
-    if (op->kind == xd_filled_bezier)
-	filled = 1;
-    else
-	filled = 0;
+    const int filled = op->kind == xd_filled_bezier;
 
     for (size_t i = 1; i < op->u.bezier.cnt; i += 3) {
 	DrawBezier(ps, filled, param);
@@ -138,11 +134,9 @@ static void DrawBeziers(sdot_op* o, int param)
 }
 
 //Draws an ellipse made out of points.
-static void DrawEllipse(sdot_op*  o, int param)
-{
-    int i = 0;
+static void DrawEllipse(xdot_op *op, int param) {
+    sdot_op *const o = (sdot_op *)((char *)op - offsetof(sdot_op, op));
     int filled;
-    xdot_op * op=&o->op;
     view->Topview->global_z += o->layer * LAYER_DIFF;
     set_options(param);
     double x = op->u.ellipse.x - dx;
@@ -175,7 +169,7 @@ static void DrawEllipse(sdot_op*  o, int param)
 	glBegin(GL_LINE_LOOP);
     else
 	glBegin(GL_POLYGON);
-    for (i = 0; i < 360; i = i + 1) {
+    for (int i = 0; i < 360; ++i) {
 	//convert degrees into radians
 	float degInRad = (float) (i * DEG2RAD);
 	glVertex3f((float)(x + cos(degInRad) * xradius),
@@ -184,9 +178,8 @@ static void DrawEllipse(sdot_op*  o, int param)
     glEnd();
 }
 
-static void DrawPolygon(sdot_op * o, int param)
-{
-    xdot_op *  op=&o->op;
+static void DrawPolygon(xdot_op *op, int param) {
+    sdot_op *const o = (sdot_op *)((char *)op - offsetof(sdot_op, op));
     view->Topview->global_z += o->layer * LAYER_DIFF;
 
     set_options(param);
@@ -213,10 +206,8 @@ static void DrawPolygon(sdot_op * o, int param)
     drawTessPolygon(o);
 }
 
-
-static void DrawPolyline(sdot_op* o, int param)
-{
-    xdot_op * op=&o->op;
+static void DrawPolyline(xdot_op *op, int param) {
+    sdot_op *const o = (sdot_op *)((char *)op - offsetof(sdot_op, op));
     view->Topview->global_z += o->layer * LAYER_DIFF;
 
     if (param == 0)
@@ -250,52 +241,39 @@ static glCompColor GetglCompColor(const char *color) {
     }
     return c;
 }
-static void SetFillColor(sdot_op*  o, int param)
-{
-    (void)param;
 
-    xdot_op * op=&o->op;
+static void SetFillColor(xdot_op *op, int param) {
+    (void)param;
     view->fillColor = GetglCompColor(op->u.color);
 }
-static void SetPenColor(sdot_op* o, int param)
-{
-    (void)param;
 
-    xdot_op * op=&o->op;
+static void SetPenColor(xdot_op *op, int param) {
+    (void)param;
     view->penColor = GetglCompColor(op->u.color);
-}
-
-static void SetStyle(sdot_op* o, int param)
-{
-    (void)o;
-    (void)param;
 }
 
 static sdot_op * font_op;
 
-static void SetFont(sdot_op * o, int param)
-{
+static void SetFont(xdot_op *op, int param) {
+	sdot_op *const o = (sdot_op *)((char *)op - offsetof(sdot_op, op));
 	(void)param;
 
 	font_op=o;
 }
 
 /*for now we only support png files in 2d space, no image rotation*/
-static void InsertImage(sdot_op * o, int param)
-{
+static void InsertImage(xdot_op *op, int param) {
+    sdot_op *const o = (sdot_op *)((char *)op - offsetof(sdot_op, op));
     (void)param;
-
-    float x,y;
-    glCompImage *i;
 
     if(!o->obj)
 	return;
 
 
     if(!o->img) {
-	x = o->op.u.image.pos.x;
-	y = o->op.u.image.pos.y;
-	i = o->img = glCompImageNewFile(x, y, o->op.u.image.name);
+	const float x = o->op.u.image.pos.x;
+	const float y = o->op.u.image.pos.y;
+	glCompImage *const i = o->img = glCompImageNewFile(x, y, o->op.u.image.name);
 	if (!o->img) {
 	    fprintf (stderr, "Could not open file \"%s\" to read image.\n", o->op.u.image.name);
 	    return;
@@ -318,8 +296,8 @@ static int put(void *buffer, const char *s) {
   return 0;
 }
 
-static void EmbedText(sdot_op* o, int param)
-{
+static void EmbedText(xdot_op *op, int param) {
+	sdot_op *const o = (sdot_op *)((char *)op - offsetof(sdot_op, op));
 	(void)param;
 
 	float x, y;
@@ -350,8 +328,8 @@ static void EmbedText(sdot_op* o, int param)
 
 		// XML-escape the text
 		const xml_flags_t flags = {.dash = 1, .nbsp = 1};
-		char **ptr = &escaped;
-		(void)gv_xml_escape(o->op.u.text.text, flags, put, ptr);
+		char *ptr = escaped;
+		(void)gv_xml_escape(o->op.u.text.text, flags, put, &ptr);
 
 		o->font = glNewFont(view->widgets, escaped, &view->penColor,
 		                    font_op->op.u.font.name, font_op->op.u.font.size,
@@ -382,14 +360,12 @@ void drawBorders(ViewInfo * vi)
 
 void drawCircle(float x, float y, float radius, float zdepth)
 {
-    int i;
     if (radius < 0.3)
 	radius = 0.4f;
     glBegin(GL_POLYGON);
-    for (i = 0; i < 360; i = i + 36) {
+    for (int i = 0; i < 360; i += 36) {
 	float degInRad = (float) (i * DEG2RAD);
-	glVertex3f((float)(x + cos(degInRad) * radius),
-		   (float)(y + sin(degInRad) * radius),
+	glVertex3f(x + cosf(degInRad) * radius, y + sinf(degInRad) * radius,
 		   (float)(zdepth + view->Topview->global_z));
     }
 
@@ -397,16 +373,18 @@ void drawCircle(float x, float y, float radius, float zdepth)
 }
 
 drawfunc_t OpFns[] = {
-    (drawfunc_t)DrawEllipse,
-    (drawfunc_t)DrawPolygon,
-    (drawfunc_t)DrawBeziers,
-    (drawfunc_t)DrawPolyline,
-    (drawfunc_t)EmbedText,
-    (drawfunc_t)SetFillColor,
-    (drawfunc_t)SetPenColor,
-    (drawfunc_t)SetFont,
-    (drawfunc_t)SetStyle,
-    (drawfunc_t)InsertImage,
+  [xop_ellipse] = DrawEllipse,
+  [xop_polygon] = DrawPolygon,
+  [xop_bezier] = DrawBeziers,
+  [xop_polyline] = DrawPolyline,
+  [xop_text] = EmbedText,
+  [xop_fill_color] = SetFillColor,
+  [xop_pen_color] = SetPenColor,
+  [xop_font] = SetFont,
+  [xop_style] = NULL,
+  [xop_image] = InsertImage,
+  [xop_grad_color] = NULL,
+  [xop_fontchar] = NULL,
 };
 
 void draw_selpoly(glCompPoly_t *selPoly) {

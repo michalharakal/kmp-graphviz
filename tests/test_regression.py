@@ -24,7 +24,7 @@ import textwrap
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Iterator, List, Optional, Set, Tuple, Union
+from typing import Iterator, Optional, Union
 
 import pexpect
 import pytest
@@ -44,7 +44,6 @@ from gvtest import (  # pylint: disable=wrong-import-position
     is_rocky,
     is_rocky_8,
     is_static_build,
-    is_ubuntu_2004,
     remove_asan_summary,
     remove_xtype_warnings,
     run,
@@ -1066,10 +1065,6 @@ def test_1489():
     ), "malformed input caused an invalid memory access"
 
 
-@pytest.mark.xfail(
-    strict=which("dot") is None or is_asan_instrumented(which("dot")),
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/1494",
-)
 def test_1494():
     """
     processing this input found by fuzzing should not trigger a double-free
@@ -1227,6 +1222,40 @@ def test_1594():
         assert p.returncode != 0, "GVPR did not reject malformed program"
 
     assert "line 3:" in stderr, "GVPR did not identify correct line of syntax error"
+
+
+@pytest.mark.parametrize(
+    "device", ("png:cairo:gd", "png:cairo:gdiplus", "png:cairo:gdk", "png:cairo:quartz")
+)
+def test_1617(device: str):
+    """
+    DPI should be propagated to PNG outputs
+    https://gitlab.com/graphviz/graphviz/-/issues/1617
+    """
+
+    # check if Graphviz was built with the plugin that provides this device
+    p = subprocess.run(
+        ["dot", "-Tpng:unrecognized", "-o", os.devnull, os.devnull],
+        stderr=subprocess.PIPE,
+        check=False,
+        text=True,
+    )
+    if re.search(rf"\b{device}\b", p.stderr) is None:
+        pytest.skip(f'"{device}" output device not supported')
+
+    # run an example with DPI through Graphviz
+    graph = 'digraph G { dpi = "300"; B->C; B->D; C->B; D->A; D->C; }'
+    png = dot(device, source=graph)
+
+    # interpret this with Pillow
+    data = io.BytesIO(png)
+    img = Image.open(data)
+
+    # we should see the DPI propagated to the image
+    default = 72
+    dpi = img.info.get("dpi", (default, default))
+    assert math.isclose(dpi[0], 300, abs_tol=1), "DPI not propagated to output"
+    assert math.isclose(dpi[1], 300, abs_tol=1), "DPI not propagated to output"
 
 
 @pytest.mark.parametrize("long,short", (("--help", "-?"), ("--version", "-V")))
@@ -2857,6 +2886,61 @@ def test_2242():
         assert ref == png, "repeated rendering changed output"
 
 
+@pytest.mark.skipif(
+    is_static_build(),
+    reason="dynamic libraries are unavailable to link against in static builds",
+)
+@pytest.mark.skipif(
+    platform.system() == "Windows" and not is_mingw(),
+    reason="string literal in 2331.c is too large to be handled by MSVC",
+)
+def test_2331(tmp_path: Path):
+    """
+    the example in this test should not cause a double-free
+    https://gitlab.com/graphviz/graphviz/-/issues/2331
+    """
+
+    # find co-located test source
+    c_src = (Path(__file__).parent / "2331.c").resolve()
+    assert c_src.exists(), "missing test case"
+
+    # From here, we essentially want to `run_c([c_src], …)`. However we cannot easily do
+    # this because we want to directly link against plugins (instead of `dlopen` them),
+    # libraries that are not in the linker’s search path. So instead we have to take a
+    # more manual approach.
+
+    # find the plugins we need to link against
+    core = _find_plugin_so("core")
+    assert core is not None, "core plugin library not found"
+    dot_layout = _find_plugin_so("dot_layout")
+    assert dot_layout is not None, "dot layout plugin library not found"
+
+    ## compile the test code
+    exe = tmp_path / "a.exe"
+    compile_c(c_src, link=["cgraph", "gvc", core, dot_layout], dst=exe)
+
+    # teach the runtime linker how to find the plugins
+    env = os.environ.copy()
+    ld_library_path = f"{core.parent}:{dot_layout.parent}"
+    prefix = ""
+    if is_macos():
+        if "DYLD_LIBRARY_PATH" in env:
+            env["DYLD_LIBRARY_PATH"] = f"{ld_library_path}:{env['DYLD_LIBRARY_PATH']}"
+        else:
+            env["DYLD_LIBRARY_PATH"] = ld_library_path
+        prefix = f"env DYLD_LIBRARY_PATH={env['DYLD_LIBRARY_PATH']} "
+    else:
+        if "LD_LIBRARY_PATH" in env:
+            env["LD_LIBRARY_PATH"] = f"{ld_library_path}:{env['LD_LIBRARY_PATH']}"
+        else:
+            env["LD_LIBRARY_PATH"] = ld_library_path
+        prefix = f"env LD_LIBRARY_PATH={env['LD_LIBRARY_PATH']} "
+
+    # run the test code
+    print(f"+ {prefix}{shlex.quote(str(exe))}")
+    subprocess.run([exe], env=env, check=True)
+
+
 def test_2342():
     """
     using an arrow with size 0 should not trigger an assertion failure
@@ -4246,7 +4330,7 @@ def test_2521(testcase: str):
     input = Path(__file__).parent / testcase
     assert input.exists(), "unexpectedly missing test case"
 
-    def sh(args: List[Union[Path, str]]) -> bytes:
+    def sh(args: list[Union[Path, str]]) -> bytes:
         """run a command, as if via the shell"""
         # dump the command being run for the user to observe if the test fails
         print(f"+ {shlex.join(str(x) for x in args)}")
@@ -4343,7 +4427,7 @@ def test_2563():
     assert input.exists(), "unexpectedly missing test case"
 
     # try various `overlap=…` values
-    results: Set[str] = set()
+    results: set[str] = set()
     for overlap in ("scale", "scalexy"):
         # run this through fdp
         fdp = which("fdp")
@@ -4497,7 +4581,7 @@ def test_2572():
                 return False
             return True
 
-    nodes: List[Box] = []
+    nodes: list[Box] = []
     for obj in parsed["objects"]:
         # extract the ellipse drawn for this node
         ellipses = [e for e in obj["_draw_"] if e["op"] == "e"]
@@ -4760,11 +4844,6 @@ def test_2593():
     reason="Autotools on macOS does not detect TCL",
     strict=True,
 )
-@pytest.mark.xfail(
-    is_cmake() and is_ubuntu_2004(),
-    reason="TCL packages are not built on Ubuntu 20.04 with CMake < 3.18",
-    strict=True,
-)
 def test_2596():
     """
     running Tclpathplan `triangulate` with a malformed callback script should not read
@@ -4862,9 +4941,6 @@ def test_2598_1(tmp_path: Path):
 
 @pytest.mark.skipif(which("gvgen") is None, reason="gvgen not available")
 @pytest.mark.skipif(which("mingle") is None, reason="mingle not available")
-@pytest.mark.xfail(
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2599", strict=True
-)
 def test_2599():
     """
     mingle should not segfault when processing simple graphs
@@ -4883,11 +4959,6 @@ def test_2599():
     proc = subprocess.run(
         [mingle, "-v", "999"], check=False, text=True, input=processed
     )
-
-    # Address Sanitizer catches segfaults and turns them into non-zero exits, so ignore
-    # testing in this scenario
-    if is_asan_instrumented(mingle):
-        pytest.skip("crashes of mingle are harder to detect under ASan")
 
     assert proc.returncode in (0, 1), "mingle crashed"
 
@@ -5103,7 +5174,7 @@ def test_2619_1(images: str, output: str, source: str, tmp_path: Path):
         src = Path(__file__).parent / f"{images}_{i}.jpg"
         shutil.copy(src, media / f"2619_{i}.jpg")
 
-    def sh(args: List[Union[Path, str]], stdin: Optional[bytes] = None) -> bytes:
+    def sh(args: list[Union[Path, str]], stdin: Optional[bytes] = None) -> bytes:
         """run a command, as if via the shell"""
         nonlocal tmp_path
 
@@ -5138,7 +5209,7 @@ def test_2619_1(images: str, output: str, source: str, tmp_path: Path):
 )
 def test_2619_3():
     """
-    loading a JPEG image shall not cause a crash in the GD plugin when the ouput format is PDF
+    loading a JPEG image shall not cause a crash in the GD plugin when the output format is PDF
     https://gitlab.com/graphviz/graphviz/-/issues/2619
     """
 
@@ -5466,7 +5537,7 @@ def test_2641(testcase: str):
     run_c(c_src, link=["cgraph"])
 
 
-def _find_plugin_so(plugin: str) -> Path:
+def _find_plugin_so(plugin: str) -> Optional[Path]:
     """
     find the absolute path to the dynamic library for a given Graphviz plugin
 
@@ -5544,19 +5615,22 @@ def test_2648(tmp_path: Path):
     # teach the runtime linker how to find the plugins
     env = os.environ.copy()
     ld_library_path = f"{core.parent}:{dot_layout.parent}"
+    prefix = ""
     if is_macos():
         if "DYLD_LIBRARY_PATH" in env:
             env["DYLD_LIBRARY_PATH"] = f"{ld_library_path}:{env['DYLD_LIBRARY_PATH']}"
         else:
             env["DYLD_LIBRARY_PATH"] = ld_library_path
+        prefix = f"env DYLD_LIBRARY_PATH={env['DYLD_LIBRARY_PATH']} "
     else:
         if "LD_LIBRARY_PATH" in env:
             env["LD_LIBRARY_PATH"] = f"{ld_library_path}:{env['LD_LIBRARY_PATH']}"
         else:
             env["LD_LIBRARY_PATH"] = ld_library_path
+        prefix = f"env LD_LIBRARY_PATH={env['LD_LIBRARY_PATH']} "
 
     # run the test code
-    print(f"+ {shlex.quote(str(exe))}")
+    print(f"+ {prefix}{shlex.quote(str(exe))}")
     subprocess.run([exe], env=env, check=True)
 
 
@@ -5570,7 +5644,7 @@ def test_2669():
     input = Path(__file__).parent / "2669.dot"
     assert input.exists(), "unexpectedly missing test case"
 
-    def parse(xml: str) -> Tuple[int, int, Tuple[float, float]]:
+    def parse(xml: str) -> tuple[int, int, tuple[float, float]]:
         """
         parse an SVG
 
@@ -5657,11 +5731,6 @@ def test_2683():
     reason="Autotools on macOS does not detect TCL",
     strict=True,
 )
-@pytest.mark.xfail(
-    is_cmake() and is_ubuntu_2004(),
-    reason="TCL packages are not built on Ubuntu 20.04 with CMake < 3.18",
-    strict=True,
-)
 def test_import_tcl_package(package: str):
     """
     The given TCL package should be loadable
@@ -5708,11 +5777,6 @@ def test_import_tcl_package(package: str):
 @pytest.mark.xfail(
     is_autotools() and is_macos(),
     reason="Autotools on macOS does not detect TCL",
-    strict=True,
-)
-@pytest.mark.xfail(
-    is_cmake() and is_ubuntu_2004(),
-    reason="TCL packages are not built on Ubuntu 20.04 with CMake < 3.18",
     strict=True,
 )
 def test_triangulation_overflow():
@@ -5779,11 +5843,6 @@ def test_triangulation_overflow():
     reason="Autotools on macOS does not detect TCL",
     strict=True,
 )
-@pytest.mark.xfail(
-    is_cmake() and is_ubuntu_2004(),
-    reason="TCL packages are not built on Ubuntu 20.04 with CMake < 3.18",
-    strict=True,
-)
 def test_vgpane_bad_triangulation():
     """
     running Tclpathplan `triangulate` with incorrect arguments should be rejected
@@ -5844,11 +5903,6 @@ def test_vgpane_bad_triangulation():
 @pytest.mark.xfail(
     is_autotools() and is_macos(),
     reason="Autotools on macOS does not detect TCL",
-    strict=True,
-)
-@pytest.mark.xfail(
-    is_cmake() and is_ubuntu_2004(),
-    reason="TCL packages are not built on Ubuntu 20.04 with CMake < 3.18",
     strict=True,
 )
 def test_vgpane_delete():

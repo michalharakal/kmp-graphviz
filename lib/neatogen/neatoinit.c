@@ -38,11 +38,11 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <util/agxbuf.h>
 #include <util/alloc.h>
 #include <util/bitarray.h>
 #include <util/gv_ctype.h>
 #include <util/gv_math.h>
+#include <util/itos.h>
 #include <util/prisize_t.h>
 #include <util/startswith.h>
 #include <util/strcasecmp.h>
@@ -383,12 +383,11 @@ static pos_edge nop_init_edges(Agraph_t * g)
     node_t *n;
     edge_t *e;
     int nedges = 0;
-    attrsym_t *E_pos;
 
     if (agnedges(g) == 0)
 	return AllEdges;
 
-    E_pos = agfindedgeattr(g, "pos");
+    attrsym_t *const E_pos = agfindedgeattr(g, "pos");
     if (!E_pos || Nop < 2)
 	return NoEdges;
 
@@ -978,10 +977,7 @@ setSeed (graph_t * G, int dflt, long* seedp)
 #else
 	    seed = (unsigned) getpid() ^ (unsigned) time(NULL);
 #endif
-	    agxbuf buf = {0};
-	    agxbprint(&buf, "%ld", seed);
-	    agset(G, "start", agxbuse(&buf));
-	    agxbfree(&buf);
+	    agset(G, "start", ITOS(seed));
 	}
 	*seedp = seed;
     }
@@ -1117,16 +1113,16 @@ void dumpOpts (ipsep_options* opp, int nv)
 static void
 majorization(graph_t *mg, graph_t * g, int nv, int mode, int model, int dim, adjust_data* am)
 {
+#if !defined(DIGCOLA) || !defined(IPSEPCOLA)
+    (void)mg;
+    (void)am;
+#endif
+
     int ne;
     int rv = 0;
     node_t *v;
     vtx_data *gp;
     node_t** nodes;
-#ifdef DIGCOLA
-#ifdef IPSEPCOLA
-    expand_t margin;
-#endif
-#endif
     int init = checkStart(g, nv, mode == MODE_HIER ? INIT_SELF : INIT_RANDOM);
     int opts = checkExp (g);
 
@@ -1188,7 +1184,7 @@ majorization(graph_t *mg, graph_t * g, int nv, int mode, int model, int dim, adj
                     fprintf(stderr,"Removing overlaps as postprocess...\n");
             }
             else opt.noverlap = 0;
-	    margin = sepFactor (g);
+	    const expand_t margin = sepFactor (g);
  	    /* Multiply by 2 since opt.gap is the gap size, not the margin */
 	    if (margin.doAdd) {
 		opt.gap.x = 2.0*PS2INCH(margin.x);

@@ -39,6 +39,7 @@
 #include		<string.h>
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <util/list.h>
 
 #define	SUCCESS				0
@@ -54,8 +55,7 @@ CGHDR_API int agapply(Agraph_t * g, Agobj_t * obj, agobjfn_t fn, void *arg,
 	    int preorder);
 
 	/* global variables */
-extern Agraph_t *Ag_G_global;
-extern char *AgDataRecName;
+extern const char AgDataRecName[];
 
 	/* set ordering disciplines */
 extern Dtdisc_t Ag_subnode_seq_disc;
@@ -107,11 +107,14 @@ void agedgeattr_delete(Agedge_t * e);
 typedef void *aagscan_t;
 typedef struct aagextra_s aagextra_t;
 
-int aagparse(void);
-void aglexinit(Agdisc_t * disc, void *ifile);
-int aaglex(void);
-void aglexeof(void);
-void aglexbad(void);
+int aaglex_init_extra(aagextra_t* user_defined, aagscan_t* scanner);
+int aaglex_destroy(aagscan_t);
+aagextra_t *aagget_extra(aagscan_t yyscanner);
+void aagset_in(FILE *, aagscan_t);
+
+int aagparse(aagscan_t scanner);
+void aglexeof(aagscan_t yyscanner);
+void aglexbad(aagscan_t yyscanner);
 
 	/* ID management */
 int agmapnametoid(Agraph_t *g, int objtype, char *str, IDTYPE *result,
