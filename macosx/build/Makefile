@@ -85,7 +85,7 @@ $(GV_DIR)/Makefile: $(GV_DIR)/configure
 	@echo
 	@echo CONFIGURING GRAPHVIZ...
 	@echo
-	cd $(GV_DIR) && ./configure --prefix=$(BUILD) --enable-swig=no --disable-dependency-tracking --with-ipsepcola --with-quartz --with-smyrna=no --disable-perl CFLAGS="-O3 -g0 $(ARCH)" CXXFLAGS="-O3 -g0 $(ARCH)" OBJCFLAGS="-O3 -g0 $(ARCH)" LDFLAGS="$(ARCH) -Wl,-dead_strip"
+	cd $(GV_DIR) && ./configure --prefix=$(BUILD) --enable-swig=no --disable-dependency-tracking --with-ipsepcola --with-quartz --with-smyrna=no --disable-perl CFLAGS="-O2 $(ARCH)" CXXFLAGS="-O2 $(ARCH)" OBJCFLAGS="-O2 $(ARCH)" LDFLAGS="$(ARCH) -Wl,-dead_strip"
 
 .PHONY: clean
 clean:
