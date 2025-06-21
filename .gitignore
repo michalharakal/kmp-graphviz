@@ -16,6 +16,9 @@ CMakeCache.txt
 # product of: ci/build.sh
 /Packages
 
+# pytest --junit-xml configured output file
+report.xml
+
 cmd/gvedit/moc_csettings.cpp
 cmd/gvedit/moc_imageviewer.cpp
 cmd/gvedit/moc_mainwindow.cpp
@@ -193,11 +196,11 @@ contrib/diffimg/diffimg
 contrib/prune/prune
 
 # Files generated during make check
-tests/ndata
 tests/nhtml
 tests/tmp*
 tests/**/*.log
 tests/**/*.trs
+tests/**/ndata
 tests/**/output/**
 tests/**/difference/**
 

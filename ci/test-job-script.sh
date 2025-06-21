@@ -27,6 +27,10 @@ if [ "${build_system}" = "cmake" ]; then
   fi
 elif [ "${ID_LIKE:-}" = "debian" ]; then
   export TCLLIBPATH=/usr/lib/tcltk/graphviz/tcl
+elif [ "${build_system}" = "autotools" ]; then
+  if [ "${ID}" = "Darwin" ]; then
+    export PATH=$PATH:$( cat /etc/paths.d/graphviz )
+  fi
 fi
 
 export GV_VERSION=$( cat GRAPHVIZ_VERSION )
