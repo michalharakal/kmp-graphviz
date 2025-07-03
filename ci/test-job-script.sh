@@ -29,7 +29,7 @@ elif [ "${ID_LIKE:-}" = "debian" ]; then
   export TCLLIBPATH=/usr/lib/tcltk/graphviz/tcl
 elif [ "${build_system}" = "autotools" ]; then
   if [ "${ID}" = "Darwin" ]; then
-    if [ -a /etc/paths.d/graphviz ]; then
+    if [ -e /etc/paths.d/graphviz ]; then
       PREFIX=$(cat /etc/paths.d/graphviz)
       PREFIX=${PREFIX%/bin}
     else
