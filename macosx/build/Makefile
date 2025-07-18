@@ -7,7 +7,7 @@ PKGBUILD=pkgbuild
 
 # prefix
 
-PREFIX=/usr/local
+PREFIX=/usr/local/graphviz
 
 # base
 
@@ -27,11 +27,12 @@ graphviz-$(UNAME_M).pkg: Distribution.xml app.pkg dot.pkg
 	@echo
 	"$(PRODUCTBUILD)" --package-path . --distribution $< $@
 
-app.pkg: Release/Graphviz.app
+app.pkg: Component.plist Release/Graphviz.app
 	@echo
 	@echo PACKAGING APP...
 	@echo
-	"$(PKGBUILD)" --install-location /Applications --identifier com.att.graphviz.app --component $< $@
+	rm -rf Release/Graphviz.app.dSYM
+	"$(PKGBUILD)" --root Release --install-location /Applications --identifier com.att.graphviz.app --component-plist $< $@
 
 dot.pkg: .$(PREFIX)/bin/$(DOT) Scripts/postinstall
 	@echo
