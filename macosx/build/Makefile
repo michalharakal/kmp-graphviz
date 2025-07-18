@@ -18,7 +18,17 @@ UNAME_M:=$(shell uname -m)
 ARCH=-arch $(UNAME_M)
 
 #
-# graphviz
+# Graphviz and App installer package
+#
+# Note: the check function in Distribution.xml specifies the minimum macOS
+# version, which should match the Graphviz.app project's deployment target.
+#
+# Note: the Component.plist file specifies BundleIsRelocatable = false,
+# which forces the app bundle into /Applications. Otherwise, the macOS
+# installer, finding the Release build of Graphviz.app registered and
+# acceptable, DOES NOT install Graphviz.app into /Applications, and WORSE
+# sets the Release build app's user/group to root/wheel!! Subsequently,
+# cleanup requires sudo to remove the Release build >:( 
 #
 
 graphviz-$(UNAME_M).pkg: Distribution.xml app.pkg dot.pkg
