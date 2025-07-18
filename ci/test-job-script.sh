@@ -27,23 +27,20 @@ if [ "${build_system}" = "cmake" ]; then
   fi
 elif [ "${ID_LIKE:-}" = "debian" ]; then
   export TCLLIBPATH=/usr/lib/tcltk/graphviz/tcl
-elif [ "${build_system}" = "autotools" ]; then
-  if [ "${ID}" = "Darwin" ]; then
-    if [ -e /etc/paths.d/graphviz ]; then
-      PREFIX=$(cat /etc/paths.d/graphviz)
-      PREFIX=${PREFIX%/bin}
-    else
-      PREFIX=/usr/local
-    fi
-    export PATH=$PATH:${PREFIX}/bin \
-      C_INCLUDE_PATH=${PREFIX}/include \
-      DYLD_LIBRARY_PATH=${PREFIX}/lib \
-      LIBRARY_PATH=${PREFIX}/lib \
-      PYTHONPATH=${PREFIX}/lib/graphviz/python3 \
-      TCLLIBPATH=${PREFIX}/lib/graphviz/tcl \
-      PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig \
-      graphviz_ROOT=${PREFIX}
+elif [ "${ID}" = "Darwin" ]; then
+  if [ -e /etc/paths.d/graphviz ]; then
+    PREFIX=$(cat /etc/paths.d/graphviz)
+    PREFIX=${PREFIX%/bin}
+  else
+    PREFIX=/usr/local
   fi
+  export PATH=$PATH:${PREFIX}/bin \
+    C_INCLUDE_PATH=${PREFIX}/include \
+    DYLD_LIBRARY_PATH=${PREFIX}/lib \
+    LIBRARY_PATH=${PREFIX}/lib \
+    TCLLIBPATH=${PREFIX}/lib/graphviz/tcl \
+    PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig \
+    graphviz_ROOT=${PREFIX}
 fi
 
 export GV_VERSION=$( cat GRAPHVIZ_VERSION )

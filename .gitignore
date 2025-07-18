@@ -10,14 +10,7 @@ CMakeCache.txt
 /GRAPHVIZ_VERSION
 
 # product of: make pkg
-/graphviz-*/
-/graphviz-*.pkg
-
-# product of: ci/build.sh
-/Packages
-
-# pytest --junit-xml configured output file
-report.xml
+graphviz-*.pkg
 
 cmd/gvedit/moc_csettings.cpp
 cmd/gvedit/moc_imageviewer.cpp
