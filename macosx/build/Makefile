@@ -90,7 +90,7 @@ $(GV_DIR)/cmd/dot/.libs/$(DOT): $(GV_DIR)/Makefile
 	$(MAKE) -C $(GV_DIR)/tclpkg/tclstubs
 	$(MAKE) -C $(GV_DIR)
 	
-$(GV_DIR)/Makefile: $(GV_DIR)/configure
+$(GV_DIR)/Makefile Distribution.xml: $(GV_DIR)/configure Distribution.xml.in
 	@echo
 	@echo CONFIGURING GRAPHVIZ...
 	@echo
@@ -98,8 +98,9 @@ $(GV_DIR)/Makefile: $(GV_DIR)/configure
 
 .PHONY: clean
 clean:
+	rm -rf Scripts Release SharedPrecompiledHeaders XCBuildData .$(PREFIX) *.pkg
 	$(MAKE) -C $(GV_DIR) clean
 
 .PHONY: distclean
-distclean:
+distclean: clean
 	$(MAKE) -C $(GV_DIR) distclean

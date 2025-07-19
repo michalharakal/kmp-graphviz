@@ -69,6 +69,12 @@ debian/libgv-php5.install
 macosx/Info.plist
 macosx/build/Distribution.xml
 !macosx/build/Makefile
+macosx/build/Scripts
+macosx/build/SharedPrecompiledHeaders
+macosx/build/XCBuildData
+macosx/build/usr
+macosx/build/app.pkg
+macosx/build/dot.pkg
 stamp-h1
 tclpkg/gv/META.gv
 
