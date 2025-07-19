@@ -75,10 +75,10 @@ Scripts/postinstall:
 	@echo SCRIPTING POSTINSTALL...
 	@echo
 	mkdir -p $(@D)
-	echo "#!/bin/sh" >$@
-	echo "logger -is -t \"Graphviz Install\" \"register dot plugins\"" >>$@
-	echo "$(PREFIX)/bin/dot -c" >>$@
-	if [[ $(PREFIX) != /usr/local ]]; then\
+	echo '#!/bin/sh' >$@
+	echo 'logger -is -t "Graphviz Install" "register dot plugins"' >>$@
+	echo '"$(PREFIX)/bin/dot" -c' >>$@
+	if [[ "$(PREFIX)" != /usr/local ]]; then\
  echo 'echo "$(PREFIX)/bin" >/etc/paths.d/graphviz' >>$@ ; fi
 	chmod 755 $@
 
