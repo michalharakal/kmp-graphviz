@@ -8,6 +8,11 @@ PKGBUILD=pkgbuild
 # prefix
 
 PREFIX=/usr/local/graphviz
+ifeq "$(PREFIX)" "/Applications/Graphviz.app/Contents/Frameworks"
+  RPATH=@executable_path/../Frameworks/lib
+else
+  RPATH="$(PREFIX)/lib"
+endif
 
 # base
 
@@ -66,7 +71,7 @@ Release/Graphviz.app: ../*.m ../*.h $(GV_DIR)/cmd/dot/.libs/$(DOT)
 	@echo
 	@echo BUILDING GRAPHVIZ GUI...
 	@echo
-	"$(XCODEBUILD)" -project ../graphviz.xcodeproj -configuration Release VALID_ARCHS=$(UNAME_M) ALWAYS_SEARCH_USER_PATHS=NO MACOSX_DEPLOYMENT_TARGET=10.13 LD_RUNPATH_SEARCH_PATHS=$(PREFIX)/lib
+	"$(XCODEBUILD)" -project ../graphviz.xcodeproj -configuration Release VALID_ARCHS=$(UNAME_M) ALWAYS_SEARCH_USER_PATHS=NO MACOSX_DEPLOYMENT_TARGET=10.13 LD_RUNPATH_SEARCH_PATHS=$(RPATH)
 	cd $@/Contents/MacOS; dyld_info -linked_dylibs Graphviz | sed -n -E "s|($(PREFIX)/lib)(.*)|\1\2 @rpath\2 Graphviz|p" | xargs -t -L1 install_name_tool -change
 	codesign -s "-" -fv $@/Contents/MacOS/Graphviz
 
@@ -78,8 +83,11 @@ Scripts/postinstall:
 	echo '#!/bin/sh' >$@
 	echo 'logger -is -t "Graphviz Install" "register dot plugins"' >>$@
 	echo '"$(PREFIX)/bin/dot" -c' >>$@
-	if [[ "$(PREFIX)" != /usr/local ]]; then\
- echo 'echo "$(PREFIX)/bin" >/etc/paths.d/graphviz' >>$@ ; fi
+ifeq "$(PREFIX)" "/usr/local"
+	echo 'rm -f /etc/paths.d/graphviz' >>Scripts/postinstall
+else
+	echo 'echo "$(PREFIX)/bin" >/etc/paths.d/graphviz' >>Scripts/postinstall
+endif
 	chmod 755 $@
 
 $(GV_DIR)/cmd/dot/.libs/$(DOT): $(GV_DIR)/Makefile
