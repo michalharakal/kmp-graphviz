@@ -106,7 +106,7 @@ $(GV_DIR)/Makefile Distribution.xml: $(GV_DIR)/configure Distribution.xml.in
 
 .PHONY: clean
 clean:
-	rm -rf Scripts Release SharedPrecompiledHeaders XCBuildData .$(PREFIX) *.pkg
+	rm -rf Distribution.xml graphviz.build Scripts Release SharedPrecompiledHeaders XCBuildData .$(PREFIX) *.pkg
 	$(MAKE) -C $(GV_DIR) clean
 
 .PHONY: distclean
