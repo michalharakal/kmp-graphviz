@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased (14.0.2)]
 
+### Added
+
+- Added option `neato -n3` for fit ends of edges to nodes' borders when edge 
+  trajectory is set.
+
 ### Changed
 
 - Quartz plugin code paths to support older macOS and iOS versions have been
