@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added option `neato -n3` for fit ends of edges to nodes' borders when edge 
-  trajectory is set.
+  trajectory is set. #2736
 
 ### Changed
 
