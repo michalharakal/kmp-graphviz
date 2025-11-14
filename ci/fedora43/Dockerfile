@@ -37,6 +37,7 @@ gd-devel \
 # Documentation and Plugin library ghostscipt
 ghostscript ghostscript-devel \
 # Plugin library gdk
+gdk-pixbuf2-devel \
 gtk3-devel \
 # Plugin library gtk
 gtkglext-devel \
