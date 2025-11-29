@@ -62,6 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `dot_builtins`, when compiled with the CMake build system, now supports the
   Quartz plugin if it is enabled at build time.
 
+### Added
+
+- Orthogonal edges now support rounded corners via the `radius` edge attribute.
+  When `splines=ortho` is set and an edge has `radius > 0`, corners are rendered
+  as smooth arcs instead of sharp angles. The radius value controls the size of
+  the corner arc. Default is 0 (square corners).
+
 ### Fixed
 
 - Memory corruption when using the Java bindings to render to a string has been
