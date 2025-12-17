@@ -1,0 +1,342 @@
+package org.graphviz.kotlin.layout.dot
+
+import org.graphviz.kotlin.model.*
+
+/**
+ * Implements graph ranking algorithm for hierarchical layout.
+ * Assigns nodes to ranks (levels) based on edge directions and constraints.
+ */
+class DotRanking {
+    
+    /**
+     * Assign ranks to all nodes in the graph.
+     * Returns a map from nodes to their rank (level) in the hierarchy.
+     */
+    fun assignRanks(graph: Graph): RankingResult {
+        try {
+            // Handle empty graph
+            if (graph.getAllNodes().isEmpty()) {
+                return RankingResult.Success(emptyMap(), emptySet())
+            }
+            
+            // Remove cycles by identifying feedback edges
+            val feedbackEdges = findFeedbackEdges(graph)
+            val acyclicGraph = createAcyclicGraph(graph, feedbackEdges)
+            
+            // Perform topological ranking
+            val ranks = performTopologicalRanking(acyclicGraph)
+            
+            // Optimize ranking to minimize edge span
+            val optimizedRanks = optimizeRanking(acyclicGraph, ranks)
+            
+            return RankingResult.Success(optimizedRanks, feedbackEdges)
+            
+        } catch (e: Exception) {
+            return RankingResult.Error("Failed to assign ranks: ${e.message}", e)
+        }
+    }
+    
+    /**
+     * Find feedback edges that need to be removed to make the graph acyclic.
+     * Uses a simple DFS-based approach to detect back edges.
+     */
+    private fun findFeedbackEdges(graph: Graph): Set<Edge> {
+        val feedbackEdges = mutableSetOf<Edge>()
+        val visited = mutableSetOf<Node>()
+        val recursionStack = mutableSetOf<Node>()
+        
+        // Perform DFS from each unvisited node
+        for (node in graph.getAllNodes()) {
+            if (node !in visited) {
+                findFeedbackEdgesDFS(graph, node, visited, recursionStack, feedbackEdges)
+            }
+        }
+        
+        return feedbackEdges
+    }
+    
+    private fun findFeedbackEdgesDFS(
+        graph: Graph,
+        node: Node,
+        visited: MutableSet<Node>,
+        recursionStack: MutableSet<Node>,
+        feedbackEdges: MutableSet<Edge>
+    ) {
+        visited.add(node)
+        recursionStack.add(node)
+        
+        // Check all outgoing edges
+        for (edge in graph.getAllEdges()) {
+            if (edge.source == node) {
+                val target = edge.target
+                
+                if (target in recursionStack) {
+                    // Back edge found - this creates a cycle
+                    feedbackEdges.add(edge)
+                } else if (target !in visited) {
+                    findFeedbackEdgesDFS(graph, target, visited, recursionStack, feedbackEdges)
+                }
+            }
+        }
+        
+        recursionStack.remove(node)
+    }
+    
+    /**
+     * Create a conceptually acyclic graph by ignoring feedback edges.
+     */
+    private fun createAcyclicGraph(graph: Graph, feedbackEdges: Set<Edge>): Graph {
+        val acyclicEdges = graph.getAllEdges() - feedbackEdges
+        
+        return GraphImpl(
+            id = graph.id + "_acyclic",
+            isDirected = graph.isDirected,
+            nodes = graph.getAllNodes(),
+            edges = acyclicEdges,
+            subgraphs = emptySet(), // Flatten for ranking
+            attributes = graph.attributes
+        )
+    }
+    
+    /**
+     * Perform topological ranking on the acyclic graph.
+     * Uses longest path algorithm to assign ranks.
+     */
+    private fun performTopologicalRanking(graph: Graph): Map<Node, Int> {
+        val ranks = mutableMapOf<Node, Int>()
+        val inDegree = mutableMapOf<Node, Int>()
+        val queue = mutableListOf<Node>()
+        
+        // Initialize in-degrees
+        for (node in graph.getAllNodes()) {
+            inDegree[node] = 0
+        }
+        
+        for (edge in graph.getAllEdges()) {
+            inDegree[edge.target] = inDegree[edge.target]!! + 1
+        }
+        
+        // Find nodes with no incoming edges (sources)
+        for (node in graph.getAllNodes()) {
+            if (inDegree[node] == 0) {
+                queue.add(node)
+                ranks[node] = 0
+            }
+        }
+        
+        // Process nodes in topological order
+        while (queue.isNotEmpty()) {
+            val current = queue.removeAt(0)
+            val currentRank = ranks[current]!!
+            
+            // Update ranks of successor nodes
+            for (edge in graph.getAllEdges()) {
+                if (edge.source == current) {
+                    val target = edge.target
+                    val newRank = currentRank + 1
+                    
+                    // Use maximum rank to handle multiple paths
+                    ranks[target] = maxOf(ranks[target] ?: 0, newRank)
+                    
+                    // Decrease in-degree and add to queue if ready
+                    inDegree[target] = inDegree[target]!! - 1
+                    if (inDegree[target] == 0) {
+                        queue.add(target)
+                    }
+                }
+            }
+        }
+        
+        // Handle any remaining unranked nodes (shouldn't happen in a proper DAG)
+        for (node in graph.getAllNodes()) {
+            if (node !in ranks) {
+                ranks[node] = 0
+            }
+        }
+        
+        return ranks
+    }
+    
+    /**
+     * Optimize ranking to minimize edge span and improve layout quality.
+     */
+    private fun optimizeRanking(graph: Graph, initialRanks: Map<Node, Int>): Map<Node, Int> {
+        val ranks = initialRanks.toMutableMap()
+        var improved = true
+        var iterations = 0
+        val maxIterations = 10
+        
+        while (improved && iterations < maxIterations) {
+            improved = false
+            iterations++
+            
+            // Try to move nodes to better ranks
+            for (node in graph.getAllNodes()) {
+                val currentRank = ranks[node]!!
+                val bestRank = findBestRank(graph, node, ranks)
+                
+                if (bestRank != currentRank && isValidRankAssignment(graph, node, bestRank, ranks)) {
+                    ranks[node] = bestRank
+                    improved = true
+                }
+            }
+        }
+        
+        return ranks
+    }
+    
+    /**
+     * Find the best rank for a node based on its neighbors.
+     */
+    private fun findBestRank(graph: Graph, node: Node, ranks: Map<Node, Int>): Int {
+        val predecessorRanks = mutableListOf<Int>()
+        val successorRanks = mutableListOf<Int>()
+        
+        for (edge in graph.getAllEdges()) {
+            when {
+                edge.target == node -> predecessorRanks.add(ranks[edge.source]!!)
+                edge.source == node -> successorRanks.add(ranks[edge.target]!!)
+            }
+        }
+        
+        return when {
+            predecessorRanks.isNotEmpty() && successorRanks.isNotEmpty() -> {
+                // Node has both predecessors and successors
+                val minSuccessorRank = successorRanks.minOrNull()!!
+                val maxPredecessorRank = predecessorRanks.maxOrNull()!!
+                maxPredecessorRank + 1
+            }
+            predecessorRanks.isNotEmpty() -> {
+                // Node only has predecessors
+                predecessorRanks.maxOrNull()!! + 1
+            }
+            successorRanks.isNotEmpty() -> {
+                // Node only has successors
+                successorRanks.minOrNull()!! - 1
+            }
+            else -> {
+                // Isolated node
+                ranks[node]!!
+            }
+        }
+    }
+    
+    /**
+     * Check if assigning a node to a specific rank would violate constraints.
+     */
+    private fun isValidRankAssignment(
+        graph: Graph,
+        node: Node,
+        newRank: Int,
+        ranks: Map<Node, Int>
+    ): Boolean {
+        // Check that all predecessors have lower ranks
+        for (edge in graph.getAllEdges()) {
+            if (edge.target == node) {
+                val predecessorRank = ranks[edge.source]!!
+                if (predecessorRank >= newRank) {
+                    return false
+                }
+            }
+        }
+        
+        // Check that all successors have higher ranks
+        for (edge in graph.getAllEdges()) {
+            if (edge.source == node) {
+                val successorRank = ranks[edge.target]!!
+                if (successorRank <= newRank) {
+                    return false
+                }
+            }
+        }
+        
+        return true
+    }
+}
+
+/**
+ * Result of the ranking algorithm.
+ */
+sealed class RankingResult {
+    /**
+     * Successful ranking with node ranks and feedback edges.
+     */
+    data class Success(
+        val ranks: Map<Node, Int>,
+        val feedbackEdges: Set<Edge>
+    ) : RankingResult()
+    
+    /**
+     * Ranking failed with error information.
+     */
+    data class Error(
+        val message: String,
+        val cause: Throwable? = null
+    ) : RankingResult()
+    
+    /**
+     * Check if the ranking was successful.
+     */
+    val isSuccess: Boolean get() = this is Success
+    
+    /**
+     * Get the ranks if successful, or null if failed.
+     */
+    fun getRanksOrNull(): Map<Node, Int>? = when (this) {
+        is Success -> ranks
+        is Error -> null
+    }
+}
+
+/**
+ * Utility functions for working with ranks.
+ */
+object RankingUtils {
+    
+    /**
+     * Get all nodes at a specific rank.
+     */
+    fun getNodesAtRank(ranks: Map<Node, Int>, rank: Int): Set<Node> {
+        return ranks.filterValues { it == rank }.keys
+    }
+    
+    /**
+     * Get the maximum rank in the ranking.
+     */
+    fun getMaxRank(ranks: Map<Node, Int>): Int {
+        return ranks.values.maxOrNull() ?: 0
+    }
+    
+    /**
+     * Get the minimum rank in the ranking.
+     */
+    fun getMinRank(ranks: Map<Node, Int>): Int {
+        return ranks.values.minOrNull() ?: 0
+    }
+    
+    /**
+     * Normalize ranks to start from 0.
+     */
+    fun normalizeRanks(ranks: Map<Node, Int>): Map<Node, Int> {
+        val minRank = getMinRank(ranks)
+        return ranks.mapValues { (_, rank) -> rank - minRank }
+    }
+    
+    /**
+     * Calculate the span of an edge (difference in ranks between source and target).
+     */
+    fun getEdgeSpan(edge: Edge, ranks: Map<Node, Int>): Int {
+        val sourceRank = ranks[edge.source] ?: 0
+        val targetRank = ranks[edge.target] ?: 0
+        return targetRank - sourceRank
+    }
+    
+    /**
+     * Calculate the total edge span for all edges in the graph.
+     */
+    fun getTotalEdgeSpan(graph: Graph, ranks: Map<Node, Int>): Int {
+        return graph.getAllEdges().sumOf { edge ->
+            maxOf(0, getEdgeSpan(edge, ranks))
+        }
+    }
+}
