@@ -11,6 +11,8 @@ plugins {
 }
 
 kotlin {
+    // Ensure consistent JVM toolchain across all JVM compilations
+    jvmToolchain(11)
 
     targets.configureEach {
         compilations.configureEach {

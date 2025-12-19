@@ -2,6 +2,9 @@ package org.graphviz.kotlin.renderer
 
 import org.graphviz.kotlin.model.*
 import org.graphviz.kotlin.layout.NodeSize
+import org.graphviz.kotlin.layout.LayoutOptions
+import org.graphviz.kotlin.layout.LayoutResult
+import org.graphviz.kotlin.layout.dot.DotLayoutEngine
 
 /**
  * Base implementation of SVG renderer providing common functionality.
@@ -32,16 +35,29 @@ abstract class BaseSvgRenderer : SvgRenderer {
      */
     protected fun renderInternal(graph: Graph, options: RenderOptions): RenderResult {
         return try {
-            // Validate input
-            val validation = validateGraph(graph)
+            // If graph is not positioned, apply a default layout (dot)
+            val positionedGraph = if (requiresLayout(graph)) {
+                val engine = DotLayoutEngine()
+                when (val layoutResult = engine.layout(graph, LayoutOptions.default())) {
+                    is LayoutResult.Success -> layoutResult.graph
+                    is LayoutResult.Error -> return RenderResult.Error(
+                        "Layout failed: ${layoutResult.message}", layoutResult.cause
+                    )
+                }
+            } else {
+                graph
+            }
+
+            // Validate positioned graph
+            val validation = validateGraph(positionedGraph)
             if (!validation.isValid) {
                 val errors = (validation as ValidationResult.Invalid).errors
                 return RenderResult.Error("Graph validation failed: ${errors.joinToString("; ")}")
             }
             
             // Calculate viewport and coordinate system
-            val viewport = calculateViewport(graph, options)
-            val boundingBox = graph.getBoundingBox()
+            val viewport = calculateViewport(positionedGraph, options)
+            val boundingBox = positionedGraph.getBoundingBox()
             
             // Create SVG document with coordinate system
             val document = if (boundingBox != null) {
@@ -51,7 +67,7 @@ abstract class BaseSvgRenderer : SvgRenderer {
             }
             
             // Render graph elements
-            renderGraph(graph, document, options, viewport)
+            renderGraph(positionedGraph, document, options, viewport)
             
             // Generate SVG markup
             val svg = document.toSvg(options)
@@ -60,6 +76,15 @@ abstract class BaseSvgRenderer : SvgRenderer {
         } catch (e: Exception) {
             RenderResult.Error("Rendering failed: ${e.message}", e)
         }
+    }
+
+    /**
+     * Determine if the graph requires a layout pass (missing node positions or edge control points).
+     */
+    private fun requiresLayout(graph: Graph): Boolean {
+        val hasUnpositionedNodes = graph.getAllNodes().any { it.position == null }
+        val hasEdgesWithoutControl = graph.getAllEdges().any { it.controlPoints.isEmpty() }
+        return hasUnpositionedNodes || hasEdgesWithoutControl
     }
     
     /**
