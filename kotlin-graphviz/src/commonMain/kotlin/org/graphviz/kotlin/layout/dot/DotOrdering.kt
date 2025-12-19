@@ -374,7 +374,7 @@ object OrderingUtils {
      * Get all nodes in the ordering in rank order.
      */
     fun getAllNodes(ordering: Map<Int, List<NodePosition>>): List<Node> {
-        return ordering.toSortedMap().values.flatten().map { it.node }
+        return ordering.keys.sorted().flatMap { rank -> ordering[rank]?.map { it.node } ?: emptyList() }
     }
     
     /**

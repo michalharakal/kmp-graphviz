@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.string
 import io.kotest.property.checkAll
+import org.graphviz.kotlin.layout.LayoutEngineRegistry
 
 /**
  * Basic tests for GraphvizLibrary to verify multiplatform setup
@@ -25,6 +26,28 @@ class GraphvizLibraryTest : StringSpec({
         GraphvizLibrary.SUPPORTED_PLATFORMS shouldContain "Android"
         GraphvizLibrary.SUPPORTED_PLATFORMS shouldContain "iOS"
         GraphvizLibrary.SUPPORTED_PLATFORMS shouldContain "JavaScript"
+    }
+    
+    "library should register dot layout engine after initialization" {
+        GraphvizLibrary.initialize()
+        
+        val availableEngines = GraphvizLibrary.getAvailableLayoutEngines()
+        availableEngines shouldContain "dot"
+        
+        val dotEngine = LayoutEngineRegistry.get("dot")
+        (dotEngine is org.graphviz.kotlin.layout.dot.DotLayoutEngine) shouldBe true
+    }
+    
+    "library should track initialization state" {
+        // Clear any previous initialization for this test
+        LayoutEngineRegistry.clear()
+        
+        GraphvizLibrary.isInitialized() shouldBe false
+        GraphvizLibrary.initialize() shouldBe true
+        GraphvizLibrary.isInitialized() shouldBe true
+        
+        // Second initialization should still return true
+        GraphvizLibrary.initialize() shouldBe true
     }
     
     "property test example - string operations should work" {

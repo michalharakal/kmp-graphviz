@@ -148,12 +148,12 @@ data class DotLayoutStatistics(
             appendLine("  Ranks: $rankCount")
             appendLine("  Crossings: $crossings")
             appendLine("  Total Edge Span: $totalEdgeSpan")
-            appendLine("  Total Edge Length: ${"%.2f".format(totalEdgeLength)}")
+            appendLine("  Total Edge Length: ${totalEdgeLength}")
             appendLine("  Has Overlaps: $hasOverlaps")
             boundingBox?.let { bbox ->
                 appendLine("  Bounding Box: ${bbox.width} x ${bbox.height}")
             }
-            appendLine("  Quality Score: ${"%.2f".format(calculateQualityScore())}")
+            appendLine("  Quality Score: ${calculateQualityScore()}")
         }
     }
 }

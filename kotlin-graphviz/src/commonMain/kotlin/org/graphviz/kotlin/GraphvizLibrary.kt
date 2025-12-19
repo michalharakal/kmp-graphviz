@@ -19,14 +19,12 @@ object GraphvizLibrary {
      */
     val SUPPORTED_PLATFORMS = setOf("JVM", "Android", "iOS", "JavaScript")
     
-    private var isInitialized = false
-    
     /**
      * Initialize the library for the current platform.
      * This registers all available layout engines and sets up the library for use.
      */
     fun initialize(): Boolean {
-        if (isInitialized) {
+        if (isInitialized()) {
             return true
         }
         
@@ -34,7 +32,6 @@ object GraphvizLibrary {
             // Register all available layout engines
             registerLayoutEngines()
             
-            isInitialized = true
             return true
         } catch (e: Exception) {
             return false
@@ -52,9 +49,9 @@ object GraphvizLibrary {
     }
     
     /**
-     * Check if the library has been initialized.
+     * Check if the library has been initialized by checking if layout engines are registered.
      */
-    fun isInitialized(): Boolean = isInitialized
+    fun isInitialized(): Boolean = LayoutEngineRegistry.isRegistered("dot")
     
     /**
      * Get all available layout engine names.
