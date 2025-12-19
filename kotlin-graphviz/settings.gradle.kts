@@ -1,4 +1,4 @@
-rootProject.name = "tensors-eKsplorer"
+rootProject.name = "kotlin-graphviz"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
