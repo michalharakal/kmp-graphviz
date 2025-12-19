@@ -3,7 +3,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.vanniktech.mavenPublish)
 }
 
 kotlin {
@@ -30,7 +29,6 @@ kotlin {
     }
 
     // iOS targets
-    iosX64()
     iosArm64()
     iosSimulatorArm64()
     
