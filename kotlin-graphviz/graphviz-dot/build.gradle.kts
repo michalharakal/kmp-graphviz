@@ -3,7 +3,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.vanniktech.mavenPublish)
 }
 
@@ -29,28 +28,7 @@ kotlin {
             useJUnitPlatform()
         }
     }
-    
-    // Android target
-    androidLibrary {
-        namespace = "org.graphviz.kotlin"
-        compileSdk = libs.versions.android.compileSdk.get().toInt()
-        minSdk = libs.versions.android.minSdk.get().toInt()
 
-        withJava() // enable java compilation support
-        withHostTestBuilder {}.configure {}
-        withDeviceTestBuilder {
-            sourceSetTreeName = "test"
-        }
-
-        compilations.configureEach {
-            compileTaskProvider.configure {
-                compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_11)
-                }
-            }
-        }
-    }
-    
     // iOS targets
     iosX64()
     iosArm64()
@@ -97,12 +75,7 @@ kotlin {
         iosTest.dependencies {
             // iOS-specific test dependencies if needed
         }
-        
-        // Platform-specific source sets are configured automatically by the hierarchy template
-        androidMain.dependencies {
-            // Android-specific dependencies
-        }
-        
+
         jsMain.dependencies {
             // JS-specific dependencies
         }

@@ -1,9 +1,12 @@
 import com.android.build.api.dsl.androidLibrary
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.android.kotlin.multiplatform.library)
+    alias(libs.plugins.androidLibrary)
     alias(libs.plugins.vanniktech.mavenPublish)
 }
 
@@ -29,28 +32,17 @@ kotlin {
             useJUnitPlatform()
         }
     }
-    
+
     // Android target
-    androidLibrary {
-        namespace = "org.graphviz.kotlin"
-        compileSdk = libs.versions.android.compileSdk.get().toInt()
-        minSdk = libs.versions.android.minSdk.get().toInt()
-
-        withJava() // enable java compilation support
-        withHostTestBuilder {}.configure {}
-        withDeviceTestBuilder {
-            sourceSetTreeName = "test"
-        }
-
-        compilations.configureEach {
-            compileTaskProvider.configure {
-                compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_11)
-                }
-            }
+    androidTarget {
+        publishLibraryVariants("release")
+        @OptIn(ExperimentalKotlinGradlePluginApi::class)
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_1_8)
         }
     }
-    
+
+
     // iOS targets
     iosX64()
     iosArm64()
@@ -123,5 +115,14 @@ tasks.matching { it.name.contains("Test") && (it.name.contains("ios") || it.name
     // Set system property to disable strict test discovery for Native platforms
     if (this is JavaExec) {
         systemProperty("kotest.framework.disable.test.nested.jar.scanning", "true")
+    }
+}
+
+
+android {
+    namespace = "sk.ainet.tool.graphviz"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    defaultConfig {
+        minSdk = libs.versions.android.minSdk.get().toInt()
     }
 }
