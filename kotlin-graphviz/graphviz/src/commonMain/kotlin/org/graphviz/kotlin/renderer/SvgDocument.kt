@@ -464,8 +464,8 @@ class SvgPath(
  * SVG text element.
  */
 class SvgText(
-    x: Double,
-    y: Double,
+    val x: Double,
+    val y: Double,
     private val text: String
 ) : SvgElement() {
     

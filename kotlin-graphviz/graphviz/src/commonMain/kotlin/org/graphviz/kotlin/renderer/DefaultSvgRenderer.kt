@@ -329,10 +329,19 @@ class DefaultSvgRenderer : BaseSvgRenderer() {
      * Transform element coordinates using the coordinate system.
      */
     private fun transformElementCoordinates(element: SvgElement, coordinateSystem: CoordinateSystem) {
-        // This is a simplified transformation - in a full implementation,
-        // we would need to handle different element types differently
-        // For now, we rely on the coordinate system transformation matrix
-        // applied at the document level
+        // Coordinate transforms are applied at the document level using a group matrix that
+        // flips the Y axis. Most primitives should inherit that flip, but text glyphs must
+        // remain upright for readability. To counter the parent Y-flip, we apply a local
+        // counter-transform on text only, flipping around its own baseline so its position
+        // stays the same while glyphs are upright.
+        if (element is SvgText) {
+            val y = element.y
+            // Flip around the text's own baseline: T = translate(0, y) * scale(1,-1) * translate(0, -y)
+            element.setAttribute(
+                "transform",
+                "translate(0, ${SvgUtils.formatNumber(y)}) scale(1, -1) translate(0, -${SvgUtils.formatNumber(y)})"
+            )
+        }
     }
     
     /**

@@ -15,6 +15,13 @@ class CoordinateSystem(
     private val svgViewport: Viewport,
     private val margin: Double = 0.0
 ) {
+    /**
+     * Returns the height of the current user coordinate system.
+     * If a viewBox is defined, use its height; otherwise fall back to the
+     * absolute viewport height. This keeps transforms consistent regardless
+     * of whether viewBox is used.
+     */
+    private fun userSpaceHeight(): Double = svgViewport.viewBox?.height ?: svgViewport.height
     
     /**
      * The scale factor applied to convert from graph coordinates to SVG coordinates.
@@ -55,7 +62,7 @@ class CoordinateSystem(
         val uniformScale = minOf(scaleX, scaleY)
         return Point(
             x = point.x * uniformScale + offsetX,
-            y = svgViewport.height - (point.y * uniformScale + offsetY) // Flip Y-axis
+            y = userSpaceHeight() - (point.y * uniformScale + offsetY) // Flip Y-axis in user space
         )
     }
     
@@ -100,7 +107,12 @@ class CoordinateSystem(
      */
     fun getTransformMatrix(): String {
         val uniformScale = minOf(scaleX, scaleY)
-        return "translate($offsetX, ${svgViewport.height - offsetY}) scale($uniformScale, ${-uniformScale})"
+        // Use an explicit matrix to avoid transform order ambiguities across renderers.
+        // Matrix maps (x, y, 1) to (s*x + tx, -s*y + ty, 1), where
+        //  s = uniformScale, tx = offsetX, ty = userSpaceHeight() - offsetY
+        val tx = offsetX
+        val ty = userSpaceHeight() - offsetY
+        return "matrix(${SvgUtils.formatNumber(uniformScale)}, 0, 0, ${SvgUtils.formatNumber(-uniformScale)}, ${SvgUtils.formatNumber(tx)}, ${SvgUtils.formatNumber(ty)})"
     }
     
     /**

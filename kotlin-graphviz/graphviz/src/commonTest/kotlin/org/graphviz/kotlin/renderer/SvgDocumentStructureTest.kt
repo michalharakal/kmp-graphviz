@@ -91,6 +91,27 @@ class SvgDocumentStructureTest {
         assertTrue(transformedPoint.x <= viewport.width)
         assertTrue(transformedPoint.y >= 0.0)
         assertTrue(transformedPoint.y <= viewport.height)
+
+        // Ensure text would be counter-flipped (transform on <text>) when group Y-flip is applied
+        val doc = SvgDocument.createWithCoordinateSystem(coordinateSystem, viewport)
+        val renderer = DefaultSvgRenderer()
+
+        // Minimal graph with a labeled node to produce <text>
+        val attrs = AttributeMap.builder().set(AttributeKey.LABEL, "Hello").build()
+        val n = NodeImpl("N", attrs, Point(100.0, 50.0))
+        val g = GraphImpl(
+            id = "g1",
+            isDirected = true,
+            nodes = setOf(n),
+            edges = emptySet(),
+            subgraphs = emptySet(),
+            attributes = AttributeMap.empty()
+        )
+
+        // Render using full pipeline to let renderer attach counter-transform
+        val svg = renderer.render(g, RenderOptions.default())
+        // Check that a <text ... transform="... scale(1, -1) ..."> appears
+        assertTrue(svg.contains("<text") && svg.contains("scale(1, -1)"))
     }
     
     @Test
@@ -172,7 +193,8 @@ class SvgDocumentStructureTest {
         
         // Transform matrix should include scaling
         val transformMatrix = coordinateSystem.getTransformMatrix()
-        assertTrue(transformMatrix.contains("scale"))
+        // Accept either functional or matrix form
+        assertTrue(transformMatrix.contains("scale") || transformMatrix.contains("matrix"))
     }
     
     @Test
