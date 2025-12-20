@@ -54,6 +54,35 @@ sealed class Color {
         is Hex -> value
         is RGB -> "#${red.toString(16).padStart(2, '0')}${green.toString(16).padStart(2, '0')}${blue.toString(16).padStart(2, '0')}"
     }
+    
+    companion object {
+        // Common colors for convenience
+        val Red = Named("red")
+        val Green = Named("green")
+        val Blue = Named("blue")
+        val Yellow = Named("yellow")
+        val Orange = Named("orange")
+        val Purple = Named("purple")
+        val Pink = Named("pink")
+        val Brown = Named("brown")
+        val Gray = Named("gray")
+        val Black = Named("black")
+        val White = Named("white")
+        
+        // Light colors
+        val LightRed = Named("lightcoral")
+        val LightGreen = Named("lightgreen")
+        val LightBlue = Named("lightblue")
+        val LightYellow = Named("lightyellow")
+        val LightGray = Named("lightgray")
+        val LightPink = Named("lightpink")
+        
+        // Dark colors
+        val DarkRed = Named("darkred")
+        val DarkGreen = Named("darkgreen")
+        val DarkBlue = Named("darkblue")
+        val DarkGray = Named("darkgray")
+    }
 }
 
 /**

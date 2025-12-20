@@ -307,6 +307,13 @@ abstract class SvgElement {
     }
     
     /**
+     * Get an attribute value from this element.
+     */
+    fun getAttribute(name: String): String? {
+        return attributes[name]
+    }
+    
+    /**
      * Generate SVG markup for this element.
      */
     abstract fun toSvg(): String

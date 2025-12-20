@@ -81,6 +81,9 @@ kotlin {
         
         jvmTest.dependencies {
             implementation(libs.kotest.runner.junit5)
+            implementation(libs.kotest.framework.engine)
+            implementation(libs.kotest.assertions.core)
+            implementation(libs.kotest.property)
         }
         
         jsTest.dependencies {
@@ -108,6 +111,13 @@ tasks.withType<Test> {
     filter {
         setFailOnNoMatchingTests(false)
     }
+    
+    // Configure JUnit Platform for Kotest
+    useJUnitPlatform()
+    
+    // Set system properties for Kotest
+    systemProperty("kotest.framework.classpath.scanning.config.disable", "false")
+    systemProperty("kotest.framework.discovery.enabled", "true")
 }
 
 // Configure Kotlin/Native test tasks specifically  
