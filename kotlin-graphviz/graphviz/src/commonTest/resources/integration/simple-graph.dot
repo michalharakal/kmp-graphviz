@@ -1,0 +1,8 @@
+digraph SimpleGraph {
+    A [label="Node A", shape=box];
+    B [label="Node B", shape=ellipse];
+    C [label="Node C"];
+    
+    A -> B [label="Edge 1"];
+    B -> C [label="Edge 2"];
+}

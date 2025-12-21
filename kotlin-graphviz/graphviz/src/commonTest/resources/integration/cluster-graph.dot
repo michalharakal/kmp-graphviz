@@ -1,0 +1,17 @@
+digraph ClusterGraph {
+    subgraph cluster_0 {
+        label="Cluster 0";
+        style=filled;
+        color=lightgrey;
+        a0 -> a1 -> a2;
+    }
+    
+    subgraph cluster_1 {
+        label="Cluster 1";
+        style=filled;
+        color=lightblue;
+        b0 -> b1 -> b2;
+    }
+    
+    a2 -> b0 [label="Cross cluster"];
+}

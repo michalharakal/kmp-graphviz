@@ -1,0 +1,11 @@
+digraph StyledGraph {
+    node [shape=box, style=filled, fillcolor=lightblue];
+    edge [color=red, style=dashed];
+    
+    Start [label="Start", fillcolor=green];
+    Process [label="Process"];
+    End [label="End", fillcolor=orange];
+    
+    Start -> Process [label="Begin"];
+    Process -> End [label="Complete", style=bold];
+}
