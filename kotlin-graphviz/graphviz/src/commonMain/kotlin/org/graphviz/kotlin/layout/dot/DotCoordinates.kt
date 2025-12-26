@@ -131,7 +131,7 @@ class DotCoordinates {
     }
     
     /**
-     * Route a long edge that spans multiple ranks.
+     * Route a long edge that spans multiple ranks with precise intermediate positioning.
      */
     private fun routeLongEdge(
         edge: Edge,
@@ -144,15 +144,20 @@ class DotCoordinates {
         val controlPoints = mutableListOf<Point>()
         controlPoints.add(sourcePos)
         
-        // Add intermediate points for each rank the edge spans
+        // Calculate precise intermediate points for each spanned rank
         val rankSpacing = options.rankSpacing
+        val totalRankSpan = targetRank - sourceRank
         
         for (rank in sourceRank + 1 until targetRank) {
             val y = sourcePos.y + (rank - sourceRank) * rankSpacing
-            // Use linear interpolation for X coordinate
-            val t = (rank - sourceRank).toDouble() / (targetRank - sourceRank)
+            
+            // Use precise linear interpolation for X coordinate
+            val t = (rank - sourceRank).toDouble() / totalRankSpan
             val x = sourcePos.x + t * (targetPos.x - sourcePos.x)
-            controlPoints.add(Point(x, y))
+            
+            // Add small perturbation to avoid exact overlaps with other edges
+            val perturbation = (edge.hashCode() % 100) * 0.01
+            controlPoints.add(Point(x + perturbation, y))
         }
         
         controlPoints.add(targetPos)
@@ -160,7 +165,7 @@ class DotCoordinates {
     }
     
     /**
-     * Route a feedback edge (creates a cycle) or same-rank edge.
+     * Route a feedback edge with precise curved path calculation.
      */
     private fun routeFeedbackEdge(
         edge: Edge,
@@ -170,17 +175,20 @@ class DotCoordinates {
     ): List<Point> {
         // Create a curved path that goes around the normal flow
         val midY = (sourcePos.y + targetPos.y) / 2
-        val offset = options.rankSpacing * 0.5
+        val offset = options.rankSpacing * 0.6
         
-        // Determine which side to curve based on X positions
-        val curveDirection = if (sourcePos.x < targetPos.x) -1.0 else 1.0
+        // Determine curve direction based on X positions and edge hash for consistency
+        val baseDirection = if (sourcePos.x < targetPos.x) -1.0 else 1.0
+        val hashPerturbation = (edge.hashCode() % 3 - 1) * 0.1 // -0.1, 0, or 0.1
+        val curveDirection = baseDirection + hashPerturbation
+        
         val curveX = (sourcePos.x + targetPos.x) / 2 + curveDirection * offset
         
         return listOf(
             sourcePos,
-            Point(sourcePos.x, sourcePos.y - offset),
+            Point(sourcePos.x, sourcePos.y - offset * 0.7),
             Point(curveX, midY - offset),
-            Point(targetPos.x, targetPos.y - offset),
+            Point(targetPos.x, targetPos.y - offset * 0.7),
             targetPos
         )
     }

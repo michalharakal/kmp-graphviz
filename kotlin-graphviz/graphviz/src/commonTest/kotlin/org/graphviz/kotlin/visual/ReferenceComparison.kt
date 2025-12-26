@@ -1,50 +1,97 @@
 package org.graphviz.kotlin.visual
 
 import org.graphviz.kotlin.model.Point
+import kotlin.math.abs
 
 /**
  * Handles comparison between Kotlin implementation output and reference Graphviz output.
  * Provides automated execution of original Graphviz and detailed comparison analysis.
+ * Enhanced for task 14.2: Build reference comparison pipeline.
  */
 object ReferenceComparison {
     
     /**
-     * Executes original Graphviz to generate reference output.
+     * Executes original Graphviz to generate reference output with enhanced error handling.
      */
-    fun generateReferenceOutput(dotContent: String, outputFormat: String = "svg"): ReferenceExecutionResult {
+    fun generateReferenceOutput(
+        dotContent: String, 
+        outputFormat: String = "svg",
+        engine: String = "dot",
+        options: GraphvizOptions = GraphvizOptions.DEFAULT
+    ): ReferenceExecutionResult {
         return try {
-            // In a real implementation, this would execute the original Graphviz binary
-            // For now, we simulate the execution
-            val referenceOutput = simulateGraphvizExecution(dotContent, outputFormat)
-            ReferenceExecutionResult.Success(referenceOutput)
+            // Use GraphvizExecutor for consistent execution
+            val result = GraphvizExecutor.execute(dotContent, engine, outputFormat, options)
+            
+            when (result) {
+                is GraphvizExecutionResult.Success -> {
+                    ReferenceExecutionResult.Success(
+                        output = result.output,
+                        executionTime = result.executionTime,
+                        command = result.command,
+                        stderr = result.stderr
+                    )
+                }
+                is GraphvizExecutionResult.Error -> {
+                    ReferenceExecutionResult.Error(
+                        message = result.message,
+                        cause = RuntimeException(result.stderr),
+                        command = result.command,
+                        exitCode = result.exitCode
+                    )
+                }
+            }
         } catch (e: Exception) {
             ReferenceExecutionResult.Error("Failed to execute Graphviz: ${e.message}", e)
         }
     }
     
     /**
-     * Compares Kotlin implementation output with reference output.
+     * Compares Kotlin implementation output with reference output using enhanced SVG parsing.
      */
     fun compareOutputs(
         kotlinOutput: String,
         referenceOutput: String,
         tolerances: ComparisonTolerances = ComparisonTolerances.DEFAULT
     ): ComparisonResult {
-        val kotlinSvg = parseSvgStructure(kotlinOutput)
-        val referenceSvg = parseSvgStructure(referenceOutput)
+        val kotlinSvg = SvgParser.parse(kotlinOutput)
+        val referenceSvg = SvgParser.parse(referenceOutput)
         
-        val structuralSimilarity = calculateStructuralSimilarity(kotlinSvg, referenceSvg)
-        val coordinateDeviations = calculateCoordinateDeviations(kotlinSvg, referenceSvg, tolerances)
-        val attributeMatches = validateAttributeMatching(kotlinSvg, referenceSvg, tolerances)
+        val detailedComparison = SvgParser.compare(kotlinSvg, referenceSvg, tolerances)
         
-        val overallScore = calculateOverallScore(structuralSimilarity, coordinateDeviations, attributeMatches)
+        // Legacy compatibility - convert detailed comparison to old format
+        val structuralSimilarity = StructuralSimilarity(
+            similarity = detailedComparison.elements.let { elem ->
+                if (elem.commonElements.isNotEmpty()) {
+                    elem.commonElements.size.toDouble() / (elem.commonElements.size + elem.missingElements.size)
+                } else 1.0
+            },
+            commonElements = detailedComparison.elements.commonElements.size,
+            missingElements = detailedComparison.elements.missingElements,
+            extraElements = detailedComparison.elements.extraElements
+        )
+        
+        val coordinateDeviations = CoordinateDeviations(
+            deviations = detailedComparison.coordinates.deviations,
+            maxDeviation = detailedComparison.coordinates.maxDeviation,
+            averageDeviation = detailedComparison.coordinates.averageDeviation,
+            withinTolerance = detailedComparison.coordinates.withinTolerance
+        )
+        
+        val attributeMatches = AttributeMatches(
+            matches = detailedComparison.attributes.matches,
+            totalAttributes = detailedComparison.attributes.totalAttributes,
+            matchingAttributes = detailedComparison.attributes.matchingAttributes,
+            matchPercentage = detailedComparison.attributes.matchPercentage
+        )
         
         return ComparisonResult(
             structuralSimilarity = structuralSimilarity,
             coordinateDeviations = coordinateDeviations,
             attributeMatches = attributeMatches,
-            overallScore = overallScore,
-            passed = overallScore >= tolerances.minimumOverallScore
+            overallScore = detailedComparison.overallScore,
+            passed = detailedComparison.passed,
+            detailedComparison = detailedComparison
         )
     }
     
@@ -68,15 +115,20 @@ object ReferenceComparison {
     }
     
     /**
-     * Batch processes multiple test cases for comparison.
+     * Batch processes multiple test cases for comparison with enhanced metrics.
      */
     fun batchCompare(
         testCases: List<TestCase>,
         kotlinOutputs: Map<String, String>,
-        tolerances: ComparisonTolerances = ComparisonTolerances.DEFAULT
+        tolerances: ComparisonTolerances = ComparisonTolerances.DEFAULT,
+        engine: String = "dot",
+        outputFormat: String = "svg"
     ): BatchComparisonResult {
         val results = mutableListOf<ComparisonReport>()
         val errors = mutableListOf<String>()
+        val executionMetrics = mutableListOf<BatchExecutionMetrics>()
+        
+        val batchStartTime = System.currentTimeMillis()
         
         for (testCase in testCases) {
             try {
@@ -86,26 +138,64 @@ object ReferenceComparison {
                     continue
                 }
                 
-                val referenceResult = generateReferenceOutput(testCase.dotContent)
+                val referenceStartTime = System.currentTimeMillis()
+                val referenceResult = generateReferenceOutput(testCase.dotContent, outputFormat, engine)
+                val referenceEndTime = System.currentTimeMillis()
+                
                 when (referenceResult) {
                     is ReferenceExecutionResult.Success -> {
+                        val comparisonStartTime = System.currentTimeMillis()
                         val comparison = compareOutputs(kotlinOutput, referenceResult.output, tolerances)
+                        val comparisonEndTime = System.currentTimeMillis()
+                        
                         val report = generateComparisonReport(testCase, kotlinOutput, referenceResult.output, comparison)
                         results.add(report)
+                        
+                        executionMetrics.add(BatchExecutionMetrics(
+                            testName = testCase.name,
+                            referenceExecutionTime = referenceEndTime - referenceStartTime,
+                            comparisonTime = comparisonEndTime - comparisonStartTime,
+                            inputSize = testCase.dotContent.length,
+                            kotlinOutputSize = kotlinOutput.length,
+                            referenceOutputSize = referenceResult.output.length,
+                            success = true
+                        ))
                     }
                     is ReferenceExecutionResult.Error -> {
                         errors.add("Reference generation failed for ${testCase.name}: ${referenceResult.message}")
+                        executionMetrics.add(BatchExecutionMetrics(
+                            testName = testCase.name,
+                            referenceExecutionTime = 0,
+                            comparisonTime = 0,
+                            inputSize = testCase.dotContent.length,
+                            kotlinOutputSize = kotlinOutput.length,
+                            referenceOutputSize = 0,
+                            success = false
+                        ))
                     }
                 }
             } catch (e: Exception) {
                 errors.add("Comparison failed for ${testCase.name}: ${e.message}")
+                executionMetrics.add(BatchExecutionMetrics(
+                    testName = testCase.name,
+                    referenceExecutionTime = 0,
+                    comparisonTime = 0,
+                    inputSize = testCase.dotContent.length,
+                    kotlinOutputSize = kotlinOutputs[testCase.name]?.length ?: 0,
+                    referenceOutputSize = 0,
+                    success = false
+                ))
             }
         }
+        
+        val batchEndTime = System.currentTimeMillis()
+        val summary = generateEnhancedBatchSummary(results, executionMetrics, batchEndTime - batchStartTime)
         
         return BatchComparisonResult(
             reports = results,
             errors = errors,
-            summary = generateBatchSummary(results)
+            summary = summary,
+            executionMetrics = executionMetrics
         )
     }
     
@@ -234,7 +324,7 @@ object ReferenceComparison {
                         val refNum = referenceValue.toDoubleOrNull()
                         val kotNum = kotlinValue.toDoubleOrNull()
                         if (refNum != null && kotNum != null) {
-                            kotlin.math.abs(refNum - kotNum) <= tolerances.numericTolerance
+                            abs(refNum - kotNum) <= tolerances.numericTolerance
                         } else {
                             kotlinValue == referenceValue
                         }
@@ -299,7 +389,11 @@ object ReferenceComparison {
         return recommendations
     }
     
-    private fun generateBatchSummary(reports: List<ComparisonReport>): BatchSummary {
+    private fun generateEnhancedBatchSummary(
+        reports: List<ComparisonReport>, 
+        metrics: List<BatchExecutionMetrics>,
+        totalBatchTime: Long
+    ): EnhancedBatchSummary {
         val totalTests = reports.size
         val passedTests = reports.count { it.comparisonResult.passed }
         val failedTests = totalTests - passedTests
@@ -308,12 +402,30 @@ object ReferenceComparison {
             reports.map { it.comparisonResult.overallScore }.average()
         } else 0.0
         
-        return BatchSummary(
+        val averageReferenceTime = if (metrics.isNotEmpty()) {
+            metrics.filter { it.success }.map { it.referenceExecutionTime }.average()
+        } else 0.0
+        
+        val averageComparisonTime = if (metrics.isNotEmpty()) {
+            metrics.filter { it.success }.map { it.comparisonTime }.average()
+        } else 0.0
+        
+        val totalInputSize = metrics.sumOf { it.inputSize }
+        val totalKotlinOutputSize = metrics.sumOf { it.kotlinOutputSize }
+        val totalReferenceOutputSize = metrics.sumOf { it.referenceOutputSize }
+        
+        return EnhancedBatchSummary(
             totalTests = totalTests,
             passedTests = passedTests,
             failedTests = failedTests,
             successRate = if (totalTests > 0) passedTests.toDouble() / totalTests else 0.0,
-            averageScore = averageScore
+            averageScore = averageScore,
+            totalBatchTime = totalBatchTime,
+            averageReferenceExecutionTime = averageReferenceTime,
+            averageComparisonTime = averageComparisonTime,
+            totalInputSize = totalInputSize,
+            totalKotlinOutputSize = totalKotlinOutputSize,
+            totalReferenceOutputSize = totalReferenceOutputSize
         )
     }
     
@@ -386,11 +498,22 @@ object ReferenceComparison {
 // Data classes for comparison results
 
 /**
- * Result of executing original Graphviz.
+ * Result of executing original Graphviz with enhanced metrics.
  */
 sealed class ReferenceExecutionResult {
-    data class Success(val output: String) : ReferenceExecutionResult()
-    data class Error(val message: String, val cause: Throwable?) : ReferenceExecutionResult()
+    data class Success(
+        val output: String,
+        val executionTime: Long = 0,
+        val command: String = "",
+        val stderr: String = ""
+    ) : ReferenceExecutionResult()
+    
+    data class Error(
+        val message: String, 
+        val cause: Throwable?,
+        val command: String = "",
+        val exitCode: Int = -1
+    ) : ReferenceExecutionResult()
 }
 
 /**
@@ -462,14 +585,15 @@ data class AttributeMatch(
 )
 
 /**
- * Overall comparison result.
+ * Overall comparison result with enhanced detail.
  */
 data class ComparisonResult(
     val structuralSimilarity: StructuralSimilarity,
     val coordinateDeviations: CoordinateDeviations,
     val attributeMatches: AttributeMatches,
     val overallScore: Double,
-    val passed: Boolean
+    val passed: Boolean,
+    val detailedComparison: DetailedComparison? = null
 )
 
 /**
@@ -485,23 +609,43 @@ data class ComparisonReport(
 )
 
 /**
- * Batch comparison result.
+ * Batch comparison result with enhanced metrics.
  */
 data class BatchComparisonResult(
     val reports: List<ComparisonReport>,
     val errors: List<String>,
-    val summary: BatchSummary
+    val summary: EnhancedBatchSummary,
+    val executionMetrics: List<BatchExecutionMetrics>
 )
 
 /**
- * Batch comparison summary.
+ * Enhanced batch comparison summary with detailed metrics.
  */
-data class BatchSummary(
+data class EnhancedBatchSummary(
     val totalTests: Int,
     val passedTests: Int,
     val failedTests: Int,
     val successRate: Double,
-    val averageScore: Double
+    val averageScore: Double,
+    val totalBatchTime: Long,
+    val averageReferenceExecutionTime: Double,
+    val averageComparisonTime: Double,
+    val totalInputSize: Int,
+    val totalKotlinOutputSize: Int,
+    val totalReferenceOutputSize: Int
+)
+
+/**
+ * Execution metrics for batch processing.
+ */
+data class BatchExecutionMetrics(
+    val testName: String,
+    val referenceExecutionTime: Long,
+    val comparisonTime: Long,
+    val inputSize: Int,
+    val kotlinOutputSize: Int,
+    val referenceOutputSize: Int,
+    val success: Boolean
 )
 
 /**

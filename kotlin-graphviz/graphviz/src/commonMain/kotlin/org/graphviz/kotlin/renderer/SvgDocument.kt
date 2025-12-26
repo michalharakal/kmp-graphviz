@@ -476,13 +476,35 @@ class SvgText(
     private val text: String
 ) : SvgElement() {
     
+    private val children = mutableListOf<SvgElement>()
+    
     init {
         setAttribute("x", x)
         setAttribute("y", y)
     }
     
+    /**
+     * Add a child element (e.g., tspan).
+     */
+    fun addChild(child: SvgElement) {
+        children.add(child)
+    }
+    
     override fun toSvg(): String {
-        return "<text${formatAttributes()}>${SvgUtils.escapeXml(text)}</text>"
+        val childrenSvg = children.joinToString("") { it.toSvg() }
+        return "<text${formatAttributes()}>${SvgUtils.escapeXml(text)}$childrenSvg</text>"
+    }
+}
+
+/**
+ * SVG tspan element for multi-line text.
+ */
+class SvgTspan(
+    private val text: String
+) : SvgElement() {
+    
+    override fun toSvg(): String {
+        return "<tspan${formatAttributes()}>${SvgUtils.escapeXml(text)}</tspan>"
     }
 }
 

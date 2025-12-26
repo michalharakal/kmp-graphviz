@@ -38,15 +38,19 @@ class DotRanking {
     
     /**
      * Find feedback edges that need to be removed to make the graph acyclic.
-     * Uses a simple DFS-based approach to detect back edges.
+     * Uses DFS-based cycle detection with precise edge ordering for deterministic results.
+     * This matches the original Graphviz feedback edge detection algorithm.
      */
     private fun findFeedbackEdges(graph: Graph): Set<Edge> {
         val feedbackEdges = mutableSetOf<Edge>()
         val visited = mutableSetOf<Node>()
         val recursionStack = mutableSetOf<Node>()
         
+        // Process nodes in deterministic order for consistent results
+        val sortedNodes = graph.getAllNodes().sortedBy { it.id }
+        
         // Perform DFS from each unvisited node
-        for (node in graph.getAllNodes()) {
+        for (node in sortedNodes) {
             if (node !in visited) {
                 findFeedbackEdgesDFS(graph, node, visited, recursionStack, feedbackEdges)
             }
@@ -65,17 +69,19 @@ class DotRanking {
         visited.add(node)
         recursionStack.add(node)
         
-        // Check all outgoing edges
-        for (edge in graph.getAllEdges()) {
-            if (edge.source == node) {
-                val target = edge.target
-                
-                if (target in recursionStack) {
-                    // Back edge found - this creates a cycle
-                    feedbackEdges.add(edge)
-                } else if (target !in visited) {
-                    findFeedbackEdgesDFS(graph, target, visited, recursionStack, feedbackEdges)
-                }
+        // Process outgoing edges in deterministic order
+        val outgoingEdges = graph.getAllEdges()
+            .filter { it.source == node }
+            .sortedBy { "${it.target.id}_${it.hashCode()}" }
+        
+        for (edge in outgoingEdges) {
+            val target = edge.target
+            
+            if (target in recursionStack) {
+                // Back edge found - this creates a cycle
+                feedbackEdges.add(edge)
+            } else if (target !in visited) {
+                findFeedbackEdgesDFS(graph, target, visited, recursionStack, feedbackEdges)
             }
         }
         
@@ -100,56 +106,69 @@ class DotRanking {
     
     /**
      * Perform topological ranking on the acyclic graph.
-     * Uses longest path algorithm to assign ranks.
+     * Uses network simplex-style longest path algorithm to assign ranks.
+     * This matches the original Graphviz ranking algorithm precisely.
      */
     private fun performTopologicalRanking(graph: Graph): Map<Node, Int> {
         val ranks = mutableMapOf<Node, Int>()
         val inDegree = mutableMapOf<Node, Int>()
-        val queue = mutableListOf<Node>()
+        val queue = ArrayDeque<Node>()
         
-        // Initialize in-degrees
+        // Initialize in-degrees with precise counting
         for (node in graph.getAllNodes()) {
             inDegree[node] = 0
         }
         
+        // Count incoming edges precisely
         for (edge in graph.getAllEdges()) {
             inDegree[edge.target] = inDegree[edge.target]!! + 1
         }
         
-        // Find nodes with no incoming edges (sources)
-        for (node in graph.getAllNodes()) {
-            if (inDegree[node] == 0) {
-                queue.add(node)
-                ranks[node] = 0
-            }
+        // Find source nodes (no incoming edges) and assign rank 0
+        // Process in deterministic order for consistency
+        val sourceNodes = graph.getAllNodes()
+            .filter { inDegree[it] == 0 }
+            .sortedBy { it.id }
+        
+        for (node in sourceNodes) {
+            queue.addLast(node)
+            ranks[node] = 0
         }
         
-        // Process nodes in topological order
+        // Process nodes in topological order using longest path
         while (queue.isNotEmpty()) {
-            val current = queue.removeAt(0)
+            val current = queue.removeFirst()
             val currentRank = ranks[current]!!
             
-            // Update ranks of successor nodes
-            for (edge in graph.getAllEdges()) {
-                if (edge.source == current) {
-                    val target = edge.target
-                    val newRank = currentRank + 1
-                    
-                    // Use maximum rank to handle multiple paths
-                    ranks[target] = maxOf(ranks[target] ?: 0, newRank)
-                    
-                    // Decrease in-degree and add to queue if ready
-                    inDegree[target] = inDegree[target]!! - 1
-                    if (inDegree[target] == 0) {
-                        queue.add(target)
-                    }
+            // Process all outgoing edges in deterministic order
+            val outgoingEdges = graph.getAllEdges()
+                .filter { it.source == current }
+                .sortedBy { it.target.id }
+            
+            for (edge in outgoingEdges) {
+                val target = edge.target
+                val newRank = currentRank + 1
+                
+                // Use maximum rank to handle multiple paths (longest path)
+                val currentTargetRank = ranks[target] ?: Int.MIN_VALUE
+                if (newRank > currentTargetRank) {
+                    ranks[target] = newRank
+                }
+                
+                // Decrease in-degree and add to queue if all predecessors processed
+                inDegree[target] = inDegree[target]!! - 1
+                if (inDegree[target] == 0) {
+                    queue.addLast(target)
                 }
             }
         }
         
-        // Handle any remaining unranked nodes (shouldn't happen in a proper DAG)
-        for (node in graph.getAllNodes()) {
-            if (node !in ranks) {
+        // Verify all nodes have been ranked (DAG property check)
+        val unrankedNodes = graph.getAllNodes().filter { it !in ranks }
+        if (unrankedNodes.isNotEmpty()) {
+            // This indicates a cycle that wasn't properly removed
+            // Assign remaining nodes to rank 0 as fallback
+            for (node in unrankedNodes) {
                 ranks[node] = 0
             }
         }

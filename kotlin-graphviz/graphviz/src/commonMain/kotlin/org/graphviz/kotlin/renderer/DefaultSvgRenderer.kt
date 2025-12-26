@@ -2,6 +2,7 @@ package org.graphviz.kotlin.renderer
 
 import org.graphviz.kotlin.model.*
 import org.graphviz.kotlin.layout.NodeSize
+import org.graphviz.kotlin.text.*
 
 /**
  * Default implementation of SVG renderer for testing the document structure generator.
@@ -871,6 +872,7 @@ class DefaultSvgRenderer : BaseSvgRenderer() {
     
     /**
      * Create a text element for node labels with proper positioning and styling.
+     * Uses precise Graphviz-compatible text metrics for accurate positioning.
      */
     private fun createNodeTextElement(
         text: String,
@@ -878,39 +880,119 @@ class DefaultSvgRenderer : BaseSvgRenderer() {
         node: Node,
         options: RenderOptions
     ): SvgText {
-        val textElement = SvgText(position.x, position.y, text)
+        // Get font properties from node attributes
+        val fontFamily = node.attributes.get(AttributeKey.FONTNAME) ?: options.fontFamily
+        val fontSize = node.attributes.get(AttributeKey.FONTSIZE) ?: options.fontSize
+        val fontStyleStr = node.attributes.getRaw("style")?.toDotString() ?: ""
+        val fontStyle = FontStyle.fromGraphviz(fontStyleStr)
         
-        // Apply text styling attributes
+        // Use Graphviz-compatible text metrics for precise measurement
+        val textMetrics = GraphvizTextMetrics()
+        val textBounds = textMetrics.measureText(text, fontFamily, fontSize, fontStyle)
+        
+        // Calculate precise text position using Graphviz positioning rules
+        val nodeSize = getNodeSize(node, options)
+        val labelPosition = node.attributes.getRaw("labelloc")?.toDotString() ?: "c"
+        val textPosition = GraphvizTextPositioning.calculateNodeLabelPosition(
+            position, 
+            Pair(nodeSize.width, nodeSize.height),
+            textBounds,
+            labelPosition
+        )
+        
+        // Handle multi-line text with proper line spacing
+        if (text.contains("\\n") || text.contains("\\l") || text.contains("\\r")) {
+            return createMultiLineTextElement(text, textPosition, node, options, textMetrics)
+        }
+        
+        // Calculate SVG text anchor point for precise positioning
+        val svgAnchor = GraphvizTextPositioning.calculateSvgTextAnchor(
+            textPosition,
+            textBounds,
+            "center", // Graphviz default horizontal alignment
+            "middle"  // Graphviz default vertical alignment
+        )
+        
+        val textElement = SvgText(svgAnchor.x, svgAnchor.y, text)
+        
+        // Apply text styling attributes with Graphviz compatibility
         textElement.setAttribute("class", "node-text")
         textElement.setAttribute("text-anchor", "middle")
         textElement.setAttribute("dominant-baseline", "central")
+        textElement.setAttribute("font-family", fontFamily)
+        textElement.setAttribute("font-size", fontSize.toString())
         
-        // Apply font attributes from node
-        node.attributes.get(AttributeKey.FONTNAME)?.let { fontName ->
-            textElement.setAttribute("font-family", fontName)
+        // Apply font style attributes
+        when (fontStyle) {
+            FontStyle.ITALIC -> textElement.setAttribute("font-style", "italic")
+            FontStyle.BOLD -> textElement.setAttribute("font-weight", "bold")
+            FontStyle.BOLD_ITALIC -> {
+                textElement.setAttribute("font-style", "italic")
+                textElement.setAttribute("font-weight", "bold")
+            }
+            FontStyle.NORMAL -> {} // No additional attributes needed
         }
         
-        node.attributes.get(AttributeKey.FONTSIZE)?.let { fontSize ->
-            textElement.setAttribute("font-size", fontSize.toString())
-        }
-        
-        // Apply text color (use fontcolor if available, otherwise use color)
+        // Apply text color (use fontcolor if available, otherwise use node color)
         val textColor = node.attributes.getRaw("fontcolor") 
             ?: node.attributes.get(AttributeKey.COLOR)?.let { AttributeValue.ColorValue(it) }
         textColor?.let { color ->
             textElement.setAttribute("fill", color.toDotString())
+        } ?: run {
+            textElement.setAttribute("fill", "black")
         }
         
-        // Handle multi-line text by splitting on \n or \l
-        if (text.contains("\\n") || text.contains("\\l")) {
-            // For multi-line text, we need to create multiple tspan elements
-            // This is a simplified implementation - a full implementation would handle
-            // proper line spacing and alignment
-            val lines = text.split("\\n", "\\l")
-            if (lines.size > 1) {
-                // For now, just use the first line and add a title for the full text
-                textElement.setAttribute("title", text.replace("\\n", "\n").replace("\\l", "\n"))
-                return SvgText(position.x, position.y, lines[0])
+        return textElement
+    }
+    
+    /**
+     * Create multi-line text element with proper Graphviz-compatible line spacing.
+     */
+    private fun createMultiLineTextElement(
+        text: String,
+        position: Point,
+        node: Node,
+        options: RenderOptions,
+        textMetrics: TextMetrics
+    ): SvgText {
+        val fontFamily = node.attributes.get(AttributeKey.FONTNAME) ?: options.fontFamily
+        val fontSize = node.attributes.get(AttributeKey.FONTSIZE) ?: options.fontSize
+        val fontStyleStr = node.attributes.getRaw("style")?.toDotString() ?: ""
+        val fontStyle = FontStyle.fromGraphviz(fontStyleStr)
+        
+        // Measure multi-line text with proper spacing
+        val multiLineBounds = MultiLineTextUtils.measureMultiLineText(
+            text, fontFamily, fontSize, fontStyle, textMetrics
+        )
+        
+        // Calculate line positions with Graphviz-compatible alignment
+        val linePositions = MultiLineTextUtils.calculateLinePositions(
+            multiLineBounds,
+            position,
+            TextAlignment.CENTER, // Graphviz default
+            textMetrics
+        )
+        
+        // Create the main text element
+        val lines = text.replace("\\n", "\n").replace("\\l", "\n").replace("\\r", "\n").split("\n")
+        val mainText = lines.firstOrNull() ?: ""
+        val textElement = SvgText(position.x, position.y, mainText)
+        
+        // Apply styling
+        textElement.setAttribute("class", "node-text multiline")
+        textElement.setAttribute("text-anchor", "middle")
+        textElement.setAttribute("dominant-baseline", "central")
+        textElement.setAttribute("font-family", fontFamily)
+        textElement.setAttribute("font-size", fontSize.toString())
+        
+        // Add additional lines as tspan elements
+        if (lines.size > 1) {
+            val lineHeight = textMetrics.getLineHeight(fontSize, fontFamily)
+            for (i in 1 until lines.size) {
+                val tspan = SvgTspan(lines[i])
+                tspan.setAttribute("x", position.x.toString())
+                tspan.setAttribute("dy", lineHeight.toString())
+                textElement.addChild(tspan)
             }
         }
         

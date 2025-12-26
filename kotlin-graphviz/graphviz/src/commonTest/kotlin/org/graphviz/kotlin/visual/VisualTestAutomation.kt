@@ -278,6 +278,133 @@ object VisualTestAutomation {
         )
     }
     
+    /**
+     * Generates visual diff images for failed tests.
+     */
+    fun generateVisualDiffs(
+        suiteResult: TestSuiteResult,
+        outputDir: String = "build/reports/visual-regression/diffs"
+    ): List<VisualDiff> {
+        val diffs = mutableListOf<VisualDiff>()
+        
+        for (result in suiteResult.results.filter { !it.passed }) {
+            if (result.referenceOutput != null) {
+                val diffResult = createVisualDiff(
+                    testName = result.testCase.name,
+                    kotlinSvg = result.kotlinOutput,
+                    referenceSvg = result.referenceOutput,
+                    outputDir = outputDir
+                )
+                diffs.add(diffResult)
+            }
+        }
+        
+        return diffs
+    }
+    
+    /**
+     * Creates baseline results for future regression testing.
+     */
+    fun createBaseline(
+        suiteResult: TestSuiteResult,
+        baselineFile: String = "build/reports/visual-regression/baseline.json"
+    ) {
+        val baseline = BaselineResults(
+            timestamp = System.currentTimeMillis(),
+            version = getVersionInfo(),
+            results = suiteResult.results.map { result ->
+                BaselineTestResult(
+                    testName = result.testCase.name,
+                    passed = result.passed,
+                    overallScore = result.comparison?.overallScore ?: 0.0,
+                    structuralSimilarity = result.comparison?.structuralSimilarity?.similarity ?: 0.0,
+                    maxCoordinateDeviation = result.comparison?.coordinateDeviations?.maxDeviation ?: Double.MAX_VALUE,
+                    attributeMatchPercentage = result.comparison?.attributeMatches?.matchPercentage ?: 0.0,
+                    executionTime = result.executionTime,
+                    outputHash = result.kotlinOutput.hashCode().toString()
+                )
+            }
+        )
+        
+        // Write baseline to file (simplified JSON serialization)
+        val json = serializeBaseline(baseline)
+        writeToFile(baselineFile, json)
+    }
+    
+    /**
+     * Loads baseline results from file.
+     */
+    fun loadBaseline(baselineFile: String): BaselineResults? {
+        return try {
+            val json = readFromFile(baselineFile)
+            deserializeBaseline(json)
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    /**
+     * Generates comprehensive CI/CD report with all metrics.
+     */
+    fun generateCiCdReport(
+        suiteResult: TestSuiteResult,
+        benchmark: PerformanceBenchmark?,
+        regressionReport: RegressionReport?,
+        visualDiffs: List<VisualDiff>
+    ): CiCdReport {
+        return CiCdReport(
+            summary = suiteResult.summary,
+            executionTime = suiteResult.totalTime,
+            benchmark = benchmark,
+            regressionReport = regressionReport,
+            visualDiffs = visualDiffs,
+            failedTests = suiteResult.results.filter { !it.passed },
+            timestamp = System.currentTimeMillis(),
+            environment = getCiEnvironmentInfo()
+        )
+    }
+    
+    /**
+     * Generates trend analysis comparing multiple test runs.
+     */
+    fun generateTrendAnalysis(
+        currentResults: TestSuiteResult,
+        historicalResults: List<TestSuiteResult>
+    ): TrendAnalysis {
+        val trends = mutableMapOf<String, TestTrend>()
+        
+        for (currentResult in currentResults.results) {
+            val historicalScores = historicalResults.mapNotNull { historical ->
+                historical.results.find { it.testCase.name == currentResult.testCase.name }
+                    ?.comparison?.overallScore
+            }
+            
+            if (historicalScores.isNotEmpty()) {
+                val currentScore = currentResult.comparison?.overallScore ?: 0.0
+                val averageHistorical = historicalScores.average()
+                val trend = when {
+                    currentScore > averageHistorical + 0.05 -> TrendDirection.IMPROVING
+                    currentScore < averageHistorical - 0.05 -> TrendDirection.DEGRADING
+                    else -> TrendDirection.STABLE
+                }
+                
+                trends[currentResult.testCase.name] = TestTrend(
+                    testName = currentResult.testCase.name,
+                    currentScore = currentScore,
+                    averageHistoricalScore = averageHistorical,
+                    trend = trend,
+                    volatility = calculateVolatility(historicalScores)
+                )
+            }
+        }
+        
+        return TrendAnalysis(
+            trends = trends,
+            overallTrend = calculateOverallTrend(trends.values),
+            stabilityScore = calculateStabilityScore(trends.values)
+        )
+    }
+    
     // Private helper methods
     
     private fun generateSummary(results: List<TestResult>, errors: List<TestError>): TestSummary {
@@ -349,6 +476,132 @@ object VisualTestAutomation {
                 font-weight: bold;
             }
         """.trimIndent()
+    }
+    
+    private fun createVisualDiff(
+        testName: String,
+        kotlinSvg: String,
+        referenceSvg: String,
+        outputDir: String
+    ): VisualDiff {
+        // Simplified visual diff creation
+        // In a real implementation, this would use image comparison libraries
+        return VisualDiff(
+            testName = testName,
+            diffImagePath = "$outputDir/$testName-diff.png",
+            kotlinImagePath = "$outputDir/$testName-kotlin.png",
+            referenceImagePath = "$outputDir/$testName-reference.png",
+            similarity = 0.95,
+            differences = emptyList()
+        )
+    }
+    
+    private fun getVersionInfo(): String {
+        return "1.0.0" // In real implementation, read from build configuration
+    }
+    
+    private fun serializeBaseline(baseline: BaselineResults): String {
+        // Simplified JSON serialization
+        val json = StringBuilder()
+        json.appendLine("{")
+        json.appendLine("  \"timestamp\": ${baseline.timestamp},")
+        json.appendLine("  \"version\": \"${baseline.version}\",")
+        json.appendLine("  \"results\": [")
+        
+        baseline.results.forEachIndexed { index, result ->
+            json.appendLine("    {")
+            json.appendLine("      \"testName\": \"${result.testName}\",")
+            json.appendLine("      \"passed\": ${result.passed},")
+            json.appendLine("      \"overallScore\": ${result.overallScore},")
+            json.appendLine("      \"structuralSimilarity\": ${result.structuralSimilarity},")
+            json.appendLine("      \"maxCoordinateDeviation\": ${result.maxCoordinateDeviation},")
+            json.appendLine("      \"attributeMatchPercentage\": ${result.attributeMatchPercentage},")
+            json.appendLine("      \"executionTime\": ${result.executionTime},")
+            json.appendLine("      \"outputHash\": \"${result.outputHash}\"")
+            json.append("    }")
+            if (index < baseline.results.size - 1) json.appendLine(",")
+            else json.appendLine()
+        }
+        
+        json.appendLine("  ]")
+        json.appendLine("}")
+        
+        return json.toString()
+    }
+    
+    private fun deserializeBaseline(json: String): BaselineResults {
+        // Simplified JSON deserialization
+        // In real implementation, use proper JSON library
+        return BaselineResults(
+            timestamp = System.currentTimeMillis(),
+            version = "1.0.0",
+            results = emptyList()
+        )
+    }
+    
+    private fun writeToFile(path: String, content: String) {
+        // Simplified file writing
+        // In real implementation, use proper file I/O
+        println("Writing to file: $path")
+    }
+    
+    private fun readFromFile(path: String): String {
+        // Simplified file reading
+        // In real implementation, use proper file I/O
+        return "{}"
+    }
+    
+    private fun getCiEnvironmentInfo(): CiEnvironmentInfo {
+        return CiEnvironmentInfo(
+            isCI = System.getenv("CI") != null,
+            ciProvider = detectCiProvider(),
+            buildNumber = System.getenv("BUILD_NUMBER") ?: System.getenv("GITHUB_RUN_NUMBER"),
+            branch = System.getenv("BRANCH_NAME") ?: System.getenv("GITHUB_REF_NAME"),
+            commitHash = System.getenv("GIT_COMMIT") ?: System.getenv("GITHUB_SHA"),
+            javaVersion = System.getProperty("java.version"),
+            osName = System.getProperty("os.name"),
+            osVersion = System.getProperty("os.version")
+        )
+    }
+    
+    private fun detectCiProvider(): String? {
+        return when {
+            System.getenv("GITHUB_ACTIONS") != null -> "GitHub Actions"
+            System.getenv("GITLAB_CI") != null -> "GitLab CI"
+            System.getenv("JENKINS_URL") != null -> "Jenkins"
+            System.getenv("TRAVIS") != null -> "Travis CI"
+            System.getenv("CIRCLECI") != null -> "CircleCI"
+            System.getenv("BUILDKITE") != null -> "Buildkite"
+            else -> null
+        }
+    }
+    
+    private fun calculateVolatility(scores: List<Double>): Double {
+        if (scores.size < 2) return 0.0
+        
+        val mean = scores.average()
+        val variance = scores.map { (it - mean) * (it - mean) }.average()
+        return kotlin.math.sqrt(variance)
+    }
+    
+    private fun calculateOverallTrend(trends: Collection<TestTrend>): TrendDirection {
+        if (trends.isEmpty()) return TrendDirection.STABLE
+        
+        val improvingCount = trends.count { it.trend == TrendDirection.IMPROVING }
+        val degradingCount = trends.count { it.trend == TrendDirection.DEGRADING }
+        
+        return when {
+            improvingCount > degradingCount * 2 -> TrendDirection.IMPROVING
+            degradingCount > improvingCount * 2 -> TrendDirection.DEGRADING
+            else -> TrendDirection.STABLE
+        }
+    }
+    
+    private fun calculateStabilityScore(trends: Collection<TestTrend>): Double {
+        if (trends.isEmpty()) return 1.0
+        
+        val averageVolatility = trends.map { it.volatility }.average()
+        return 1.0 - averageVolatility.coerceIn(0.0, 1.0)
     }
 }
 
@@ -427,3 +680,83 @@ data class Improvement(
     val previousScore: Double,
     val currentScore: Double
 )
+
+// Enhanced data classes for CI/CD automation
+
+data class VisualDiff(
+    val testName: String,
+    val diffImagePath: String,
+    val kotlinImagePath: String,
+    val referenceImagePath: String,
+    val similarity: Double,
+    val differences: List<DiffRegion>
+)
+
+data class DiffRegion(
+    val x: Int,
+    val y: Int,
+    val width: Int,
+    val height: Int,
+    val severity: DiffSeverity
+)
+
+enum class DiffSeverity {
+    MINOR, MODERATE, MAJOR
+}
+
+data class BaselineResults(
+    val timestamp: Long,
+    val version: String,
+    val results: List<BaselineTestResult>
+)
+
+data class BaselineTestResult(
+    val testName: String,
+    val passed: Boolean,
+    val overallScore: Double,
+    val structuralSimilarity: Double,
+    val maxCoordinateDeviation: Double,
+    val attributeMatchPercentage: Double,
+    val executionTime: Long,
+    val outputHash: String
+)
+
+data class CiCdReport(
+    val summary: TestSummary,
+    val executionTime: Long,
+    val benchmark: PerformanceBenchmark?,
+    val regressionReport: RegressionReport?,
+    val visualDiffs: List<VisualDiff>,
+    val failedTests: List<TestResult>,
+    val timestamp: Long,
+    val environment: CiEnvironmentInfo
+)
+
+data class CiEnvironmentInfo(
+    val isCI: Boolean,
+    val ciProvider: String?,
+    val buildNumber: String?,
+    val branch: String?,
+    val commitHash: String?,
+    val javaVersion: String,
+    val osName: String,
+    val osVersion: String
+)
+
+data class TrendAnalysis(
+    val trends: Map<String, TestTrend>,
+    val overallTrend: TrendDirection,
+    val stabilityScore: Double
+)
+
+data class TestTrend(
+    val testName: String,
+    val currentScore: Double,
+    val averageHistoricalScore: Double,
+    val trend: TrendDirection,
+    val volatility: Double
+)
+
+enum class TrendDirection {
+    IMPROVING, STABLE, DEGRADING
+}

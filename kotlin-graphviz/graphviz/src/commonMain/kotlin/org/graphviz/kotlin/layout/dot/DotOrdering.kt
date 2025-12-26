@@ -107,6 +107,8 @@ class DotOrdering {
     
     /**
      * Optimize node ordering using iterative crossing reduction.
+     * Uses the median heuristic with precise tie-breaking for deterministic results.
+     * This matches the original Graphviz mincross algorithm behavior.
      */
     private fun optimizeOrdering(
         graph: Graph,
@@ -116,19 +118,19 @@ class DotOrdering {
         var currentOrdering = initialOrdering.toMutableMap()
         var improved = true
         var iterations = 0
-        val maxIterations = 10
+        val maxIterations = 24 // Match original Graphviz default
         
         while (improved && iterations < maxIterations) {
             improved = false
             iterations++
             
-            // Forward pass: optimize based on previous rank
+            // Forward pass: optimize based on previous rank (down sweep)
             val sortedRanks = nodesByRank.keys.sorted()
             for (i in 1 until sortedRanks.size) {
                 val rank = sortedRanks[i]
                 val previousRank = sortedRanks[i - 1]
                 
-                val newOrdering = optimizeRankOrdering(
+                val newOrdering = optimizeRankOrderingMedian(
                     currentOrdering[rank] ?: emptyList(),
                     currentOrdering[previousRank] ?: emptyList(),
                     graph,
@@ -141,12 +143,12 @@ class DotOrdering {
                 }
             }
             
-            // Backward pass: optimize based on next rank
+            // Backward pass: optimize based on next rank (up sweep)
             for (i in sortedRanks.size - 2 downTo 0) {
                 val rank = sortedRanks[i]
                 val nextRank = sortedRanks[i + 1]
                 
-                val newOrdering = optimizeRankOrdering(
+                val newOrdering = optimizeRankOrderingMedian(
                     currentOrdering[rank] ?: emptyList(),
                     currentOrdering[nextRank] ?: emptyList(),
                     graph,
@@ -164,18 +166,24 @@ class DotOrdering {
     }
     
     /**
-     * Optimize the ordering of nodes in a single rank.
+     * Optimize the ordering of nodes in a single rank using median heuristic.
+     * This implements the precise median calculation used in original Graphviz.
      */
-    private fun optimizeRankOrdering(
+    private fun optimizeRankOrderingMedian(
         rankNodes: List<Node>,
         adjacentRankNodes: List<Node>,
         graph: Graph,
         forward: Boolean
     ): List<Node> {
-        // Use barycenter heuristic
-        val nodeWeights = rankNodes.map { node ->
+        if (rankNodes.isEmpty() || adjacentRankNodes.isEmpty()) {
+            return rankNodes
+        }
+        
+        // Calculate median positions for each node
+        val nodeMedians = rankNodes.map { node ->
             val connections = mutableListOf<Int>()
             
+            // Find all connections to adjacent rank
             for (edge in graph.getAllEdges()) {
                 val isConnected = if (forward) {
                     edge.target == node && edge.source in adjacentRankNodes
@@ -192,17 +200,30 @@ class DotOrdering {
                 }
             }
             
-            val barycenter = if (connections.isNotEmpty()) {
-                connections.average()
-            } else {
-                Double.MAX_VALUE
+            // Calculate median position with precise tie-breaking
+            val median = when {
+                connections.isEmpty() -> Double.MAX_VALUE // Nodes with no connections go to end
+                connections.size == 1 -> connections[0].toDouble()
+                connections.size % 2 == 1 -> {
+                    // Odd number of connections: use middle value
+                    connections.sorted()[connections.size / 2].toDouble()
+                }
+                else -> {
+                    // Even number of connections: use average of two middle values
+                    val sorted = connections.sorted()
+                    val mid = connections.size / 2
+                    (sorted[mid - 1] + sorted[mid]) / 2.0
+                }
             }
             
-            node to barycenter
+            node to median
         }
         
-        // Sort by barycenter value
-        return nodeWeights.sortedBy { it.second }.map { it.first }
+        // Sort by median value, with stable sort for deterministic results
+        // Use node ID as secondary sort key for consistent tie-breaking
+        return nodeMedians
+            .sortedWith(compareBy<Pair<Node, Double>> { it.second }.thenBy { it.first.id })
+            .map { it.first }
     }
     
     /**

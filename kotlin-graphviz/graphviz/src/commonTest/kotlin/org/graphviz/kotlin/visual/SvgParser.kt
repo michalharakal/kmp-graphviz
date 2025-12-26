@@ -5,11 +5,12 @@ import org.graphviz.kotlin.model.Point
 /**
  * Parses SVG content for detailed structural comparison.
  * Extracts elements, coordinates, attributes, and other structural information.
+ * Enhanced for task 14.2: Build reference comparison pipeline.
  */
 object SvgParser {
     
     /**
-     * Parses SVG content into a structured representation.
+     * Parses SVG content into a structured representation with enhanced detail.
      */
     fun parse(svgContent: String): ParsedSvg {
         val elements = extractElements(svgContent)
@@ -18,6 +19,8 @@ object SvgParser {
         val viewport = extractViewport(svgContent)
         val textElements = extractTextElements(svgContent)
         val pathElements = extractPathElements(svgContent)
+        val styleElements = extractStyleElements(svgContent)
+        val transformations = extractTransformations(svgContent)
         
         return ParsedSvg(
             elements = elements,
@@ -25,12 +28,15 @@ object SvgParser {
             attributes = attributes,
             viewport = viewport,
             textElements = textElements,
-            pathElements = pathElements
+            pathElements = pathElements,
+            styleElements = styleElements,
+            transformations = transformations,
+            rawContent = svgContent
         )
     }
     
     /**
-     * Compares two parsed SVG structures for detailed analysis.
+     * Compares two parsed SVG structures for detailed analysis with enhanced metrics.
      */
     fun compare(svg1: ParsedSvg, svg2: ParsedSvg, tolerances: ComparisonTolerances): DetailedComparison {
         val elementComparison = compareElements(svg1.elements, svg2.elements)
@@ -39,6 +45,13 @@ object SvgParser {
         val textComparison = compareTextElements(svg1.textElements, svg2.textElements)
         val pathComparison = comparePathElements(svg1.pathElements, svg2.pathElements, tolerances)
         val viewportComparison = compareViewports(svg1.viewport, svg2.viewport, tolerances)
+        val styleComparison = compareStyleElements(svg1.styleElements, svg2.styleElements)
+        val transformComparison = compareTransformations(svg1.transformations, svg2.transformations, tolerances)
+        
+        val overallScore = calculateDetailedScore(
+            elementComparison, coordinateComparison, attributeComparison,
+            textComparison, pathComparison, viewportComparison, styleComparison, transformComparison
+        )
         
         return DetailedComparison(
             elements = elementComparison,
@@ -46,7 +59,11 @@ object SvgParser {
             attributes = attributeComparison,
             text = textComparison,
             paths = pathComparison,
-            viewport = viewportComparison
+            viewport = viewportComparison,
+            styles = styleComparison,
+            transformations = transformComparison,
+            overallScore = overallScore,
+            passed = overallScore >= tolerances.minimumOverallScore
         )
     }
     
@@ -65,8 +82,7 @@ object SvgParser {
             
             elements.add(SvgElement(
                 type = elementType,
-                id = elementId,
-                content = fullMatch
+                id = elementId
             ))
         }
         
@@ -209,6 +225,122 @@ object SvgParser {
         }
         
         return pathElements
+    }
+    
+    // Enhanced extraction methods for task 14.2
+    
+    private fun extractStyleElements(svgContent: String): List<StyleElement> {
+        val styleElements = mutableListOf<StyleElement>()
+        
+        // Extract style attributes from elements
+        val elementPattern = Regex("""<(\w+)[^>]*id="([^"]*)"[^>]*style="([^"]*)"[^>]*>""")
+        elementPattern.findAll(svgContent).forEach { match ->
+            val elementType = match.groupValues[1]
+            val elementId = match.groupValues[2]
+            val styleContent = match.groupValues[3]
+            
+            val styleProperties = parseStyleString(styleContent)
+            
+            styleElements.add(StyleElement(
+                elementId = elementId,
+                elementType = elementType,
+                properties = styleProperties
+            ))
+        }
+        
+        // Extract CSS style blocks
+        val cssPattern = Regex("""<style[^>]*>(.*?)</style>""", RegexOption.DOT_MATCHES_ALL)
+        cssPattern.findAll(svgContent).forEach { match ->
+            val cssContent = match.groupValues[1]
+            val cssRules = parseCssRules(cssContent)
+            
+            cssRules.forEach { (selector, properties) ->
+                styleElements.add(StyleElement(
+                    elementId = selector,
+                    elementType = "css-rule",
+                    properties = properties
+                ))
+            }
+        }
+        
+        return styleElements
+    }
+    
+    private fun extractTransformations(svgContent: String): Map<String, TransformationInfo> {
+        val transformations = mutableMapOf<String, TransformationInfo>()
+        
+        val transformPattern = Regex("""id="([^"]+)"[^>]*transform="([^"]*)"[^>]*>""")
+        transformPattern.findAll(svgContent).forEach { match ->
+            val elementId = match.groupValues[1]
+            val transformString = match.groupValues[2]
+            
+            val transformation = parseTransformString(transformString)
+            transformations[elementId] = transformation
+        }
+        
+        return transformations
+    }
+    
+    private fun parseStyleString(styleString: String): Map<String, String> {
+        val properties = mutableMapOf<String, String>()
+        
+        styleString.split(";").forEach { property ->
+            val parts = property.split(":", limit = 2)
+            if (parts.size == 2) {
+                properties[parts[0].trim()] = parts[1].trim()
+            }
+        }
+        
+        return properties
+    }
+    
+    private fun parseCssRules(cssContent: String): Map<String, Map<String, String>> {
+        val rules = mutableMapOf<String, Map<String, String>>()
+        
+        val rulePattern = Regex("""([^{]+)\s*\{([^}]+)\}""")
+        rulePattern.findAll(cssContent).forEach { match ->
+            val selector = match.groupValues[1].trim()
+            val propertiesString = match.groupValues[2]
+            
+            val properties = parseStyleString(propertiesString)
+            rules[selector] = properties
+        }
+        
+        return rules
+    }
+    
+    private fun parseTransformString(transformString: String): TransformationInfo {
+        val operations = mutableListOf<TransformOperation>()
+        
+        // Parse translate operations
+        val translatePattern = Regex("""translate\(([^,)]+)(?:,([^)]+))?\)""")
+        translatePattern.findAll(transformString).forEach { match ->
+            val x = match.groupValues[1].toDoubleOrNull() ?: 0.0
+            val y = match.groupValues[2].takeIf { it.isNotEmpty() }?.toDoubleOrNull() ?: 0.0
+            operations.add(TransformOperation.Translate(x, y))
+        }
+        
+        // Parse scale operations
+        val scalePattern = Regex("""scale\(([^,)]+)(?:,([^)]+))?\)""")
+        scalePattern.findAll(transformString).forEach { match ->
+            val sx = match.groupValues[1].toDoubleOrNull() ?: 1.0
+            val sy = match.groupValues[2].takeIf { it.isNotEmpty() }?.toDoubleOrNull() ?: sx
+            operations.add(TransformOperation.Scale(sx, sy))
+        }
+        
+        // Parse rotate operations
+        val rotatePattern = Regex("""rotate\(([^,)]+)(?:,([^,)]+),([^)]+))?\)""")
+        rotatePattern.findAll(transformString).forEach { match ->
+            val angle = match.groupValues[1].toDoubleOrNull() ?: 0.0
+            val cx = match.groupValues[2].takeIf { it.isNotEmpty() }?.toDoubleOrNull() ?: 0.0
+            val cy = match.groupValues[3].takeIf { it.isNotEmpty() }?.toDoubleOrNull() ?: 0.0
+            operations.add(TransformOperation.Rotate(angle, cx, cy))
+        }
+        
+        return TransformationInfo(
+            rawTransform = transformString,
+            operations = operations
+        )
     }
     
     // Private comparison methods
@@ -402,6 +534,154 @@ object SvgParser {
             }
         }
     }
+    
+    // Enhanced comparison methods for task 14.2
+    
+    private fun compareStyleElements(styles1: List<StyleElement>, styles2: List<StyleElement>): StyleComparison {
+        val matches = mutableListOf<StyleMatch>()
+        
+        for (style2 in styles2) {
+            val style1 = styles1.find { it.elementId == style2.elementId && it.elementType == style2.elementType }
+            
+            val propertyMatches = mutableMapOf<String, Boolean>()
+            var matchingProperties = 0
+            var totalProperties = style2.properties.size
+            
+            for ((property, value2) in style2.properties) {
+                val value1 = style1?.properties?.get(property)
+                val matches = value1 == value2
+                propertyMatches[property] = matches
+                if (matches) matchingProperties++
+            }
+            
+            matches.add(StyleMatch(
+                elementId = style2.elementId,
+                elementType = style2.elementType,
+                kotlinProperties = style1?.properties ?: emptyMap(),
+                referenceProperties = style2.properties,
+                propertyMatches = propertyMatches,
+                matchPercentage = if (totalProperties > 0) matchingProperties.toDouble() / totalProperties else 1.0
+            ))
+        }
+        
+        val totalStyles = styles2.size
+        val matchingStyles = matches.count { it.matchPercentage >= 0.8 }
+        val overallMatchPercentage = if (totalStyles > 0) matchingStyles.toDouble() / totalStyles else 1.0
+        
+        return StyleComparison(
+            matches = matches,
+            totalStyles = totalStyles,
+            matchingStyles = matchingStyles,
+            overallMatchPercentage = overallMatchPercentage
+        )
+    }
+    
+    private fun compareTransformations(
+        transforms1: Map<String, TransformationInfo>,
+        transforms2: Map<String, TransformationInfo>,
+        tolerances: ComparisonTolerances
+    ): TransformationComparison {
+        val matches = mutableListOf<TransformationMatch>()
+        
+        for ((elementId, transform2) in transforms2) {
+            val transform1 = transforms1[elementId]
+            
+            val operationsMatch = if (transform1 != null) {
+                compareTransformOperations(transform1.operations, transform2.operations, tolerances)
+            } else {
+                false
+            }
+            
+            matches.add(TransformationMatch(
+                elementId = elementId,
+                kotlinTransform = transform1,
+                referenceTransform = transform2,
+                operationsMatch = operationsMatch
+            ))
+        }
+        
+        val totalTransforms = transforms2.size
+        val matchingTransforms = matches.count { it.operationsMatch }
+        val matchPercentage = if (totalTransforms > 0) matchingTransforms.toDouble() / totalTransforms else 1.0
+        
+        return TransformationComparison(
+            matches = matches,
+            totalTransforms = totalTransforms,
+            matchingTransforms = matchingTransforms,
+            matchPercentage = matchPercentage
+        )
+    }
+    
+    private fun compareTransformOperations(
+        ops1: List<TransformOperation>,
+        ops2: List<TransformOperation>,
+        tolerances: ComparisonTolerances
+    ): Boolean {
+        if (ops1.size != ops2.size) return false
+        
+        return ops1.zip(ops2).all { (op1, op2) ->
+            when {
+                op1 is TransformOperation.Translate && op2 is TransformOperation.Translate -> {
+                    kotlin.math.abs(op1.x - op2.x) <= tolerances.numericTolerance &&
+                    kotlin.math.abs(op1.y - op2.y) <= tolerances.numericTolerance
+                }
+                op1 is TransformOperation.Scale && op2 is TransformOperation.Scale -> {
+                    kotlin.math.abs(op1.sx - op2.sx) <= tolerances.numericTolerance &&
+                    kotlin.math.abs(op1.sy - op2.sy) <= tolerances.numericTolerance
+                }
+                op1 is TransformOperation.Rotate && op2 is TransformOperation.Rotate -> {
+                    kotlin.math.abs(op1.angle - op2.angle) <= tolerances.numericTolerance &&
+                    kotlin.math.abs(op1.cx - op2.cx) <= tolerances.numericTolerance &&
+                    kotlin.math.abs(op1.cy - op2.cy) <= tolerances.numericTolerance
+                }
+                else -> op1::class == op2::class
+            }
+        }
+    }
+    
+    private fun calculateDetailedScore(
+        elements: ElementComparison,
+        coordinates: CoordinateComparison,
+        attributes: AttributeComparison,
+        text: TextComparison,
+        paths: PathComparison,
+        viewport: ViewportComparison,
+        styles: StyleComparison,
+        transformations: TransformationComparison
+    ): Double {
+        // Weighted scoring system
+        val weights = mapOf(
+            "structural" to 0.25,
+            "coordinates" to 0.20,
+            "attributes" to 0.15,
+            "text" to 0.10,
+            "paths" to 0.10,
+            "viewport" to 0.10,
+            "styles" to 0.05,
+            "transformations" to 0.05
+        )
+        
+        val structuralScore = if (elements.commonElements.isNotEmpty()) {
+            elements.commonElements.size.toDouble() / (elements.commonElements.size + elements.missingElements.size)
+        } else 1.0
+        
+        val coordinateScore = if (coordinates.withinTolerance) 1.0 else 0.5
+        val attributeScore = attributes.matchPercentage
+        val textScore = text.matchPercentage
+        val pathScore = paths.matchPercentage
+        val viewportScore = if (viewport.matches) 1.0 else 0.0
+        val styleScore = styles.overallMatchPercentage
+        val transformScore = transformations.matchPercentage
+        
+        return (structuralScore * weights["structural"]!!) +
+               (coordinateScore * weights["coordinates"]!!) +
+               (attributeScore * weights["attributes"]!!) +
+               (textScore * weights["text"]!!) +
+               (pathScore * weights["paths"]!!) +
+               (viewportScore * weights["viewport"]!!) +
+               (styleScore * weights["styles"]!!) +
+               (transformScore * weights["transformations"]!!)
+    }
 }
 
 // Data classes for parsed SVG structure
@@ -412,14 +692,13 @@ data class ParsedSvg(
     val attributes: Map<String, Map<String, String>>,
     val viewport: SvgViewport?,
     val textElements: List<TextElement>,
-    val pathElements: List<PathElement>
+    val pathElements: List<PathElement>,
+    val styleElements: List<StyleElement>,
+    val transformations: Map<String, TransformationInfo>,
+    val rawContent: String
 )
 
-data class SvgElement(
-    val type: String,
-    val id: String,
-    val content: String
-)
+// SvgElement is already defined in ReferenceComparison.kt
 
 data class ElementCoordinates(
     val position: Point,
@@ -459,7 +738,11 @@ data class DetailedComparison(
     val attributes: AttributeComparison,
     val text: TextComparison,
     val paths: PathComparison,
-    val viewport: ViewportComparison
+    val viewport: ViewportComparison,
+    val styles: StyleComparison,
+    val transformations: TransformationComparison,
+    val overallScore: Double,
+    val passed: Boolean
 )
 
 data class ElementComparison(
@@ -482,6 +765,8 @@ data class AttributeComparison(
     val matchingAttributes: Int,
     val matchPercentage: Double
 )
+
+// AttributeMatch is already defined in ReferenceComparison.kt
 
 data class TextComparison(
     val matches: List<TextMatch>,
@@ -514,4 +799,53 @@ data class PathMatch(
 data class ViewportComparison(
     val matches: Boolean,
     val message: String?
+)
+
+// Enhanced data classes for task 14.2
+
+data class StyleElement(
+    val elementId: String,
+    val elementType: String,
+    val properties: Map<String, String>
+)
+
+data class TransformationInfo(
+    val rawTransform: String,
+    val operations: List<TransformOperation>
+)
+
+sealed class TransformOperation {
+    data class Translate(val x: Double, val y: Double) : TransformOperation()
+    data class Scale(val sx: Double, val sy: Double) : TransformOperation()
+    data class Rotate(val angle: Double, val cx: Double, val cy: Double) : TransformOperation()
+}
+
+data class StyleComparison(
+    val matches: List<StyleMatch>,
+    val totalStyles: Int,
+    val matchingStyles: Int,
+    val overallMatchPercentage: Double
+)
+
+data class StyleMatch(
+    val elementId: String,
+    val elementType: String,
+    val kotlinProperties: Map<String, String>,
+    val referenceProperties: Map<String, String>,
+    val propertyMatches: Map<String, Boolean>,
+    val matchPercentage: Double
+)
+
+data class TransformationComparison(
+    val matches: List<TransformationMatch>,
+    val totalTransforms: Int,
+    val matchingTransforms: Int,
+    val matchPercentage: Double
+)
+
+data class TransformationMatch(
+    val elementId: String,
+    val kotlinTransform: TransformationInfo?,
+    val referenceTransform: TransformationInfo,
+    val operationsMatch: Boolean
 )

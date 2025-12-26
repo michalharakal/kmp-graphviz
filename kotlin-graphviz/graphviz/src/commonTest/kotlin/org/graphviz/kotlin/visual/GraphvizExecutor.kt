@@ -3,11 +3,13 @@ package org.graphviz.kotlin.visual
 /**
  * Executes the original Graphviz binary for reference output generation.
  * This is platform-specific and requires Graphviz to be installed on the system.
+ * Enhanced for task 14.2: Build reference comparison pipeline.
  */
 object GraphvizExecutor {
     
     /**
      * Executes Graphviz with the given DOT content and returns the output.
+     * Enhanced with better error handling and execution metrics.
      */
     fun execute(
         dotContent: String,
@@ -23,20 +25,26 @@ object GraphvizExecutor {
                 GraphvizExecutionResult.Success(
                     output = result.stdout,
                     stderr = result.stderr,
-                    executionTime = result.executionTime
+                    executionTime = result.executionTime,
+                    command = command.joinToString(" "),
+                    inputSize = dotContent.length
                 )
             } else {
                 GraphvizExecutionResult.Error(
                     message = "Graphviz execution failed with exit code ${result.exitCode}",
                     stderr = result.stderr,
-                    exitCode = result.exitCode
+                    exitCode = result.exitCode,
+                    command = command.joinToString(" "),
+                    inputContent = dotContent
                 )
             }
         } catch (e: Exception) {
             GraphvizExecutionResult.Error(
                 message = "Failed to execute Graphviz: ${e.message}",
                 stderr = e.stackTraceToString(),
-                exitCode = -1
+                exitCode = -1,
+                command = "unknown",
+                inputContent = dotContent
             )
         }
     }
@@ -103,21 +111,68 @@ object GraphvizExecutor {
     }
     
     /**
-     * Executes multiple test cases in batch.
+     * Executes multiple test cases in batch with detailed metrics.
      */
     fun batchExecute(
         testCases: List<TestCase>,
         engine: String = "dot",
         format: String = "svg",
         options: GraphvizOptions = GraphvizOptions.DEFAULT
-    ): Map<String, GraphvizExecutionResult> {
+    ): BatchExecutionResult {
         val results = mutableMapOf<String, GraphvizExecutionResult>()
+        val metrics = mutableListOf<ExecutionMetrics>()
+        val errors = mutableListOf<String>()
+        
+        val startTime = System.currentTimeMillis()
         
         for (testCase in testCases) {
-            results[testCase.name] = execute(testCase.dotContent, engine, format, options)
+            try {
+                val result = execute(testCase.dotContent, engine, format, options)
+                results[testCase.name] = result
+                
+                when (result) {
+                    is GraphvizExecutionResult.Success -> {
+                        metrics.add(ExecutionMetrics(
+                            testName = testCase.name,
+                            executionTime = result.executionTime,
+                            inputSize = result.inputSize,
+                            outputSize = result.output.length,
+                            success = true
+                        ))
+                    }
+                    is GraphvizExecutionResult.Error -> {
+                        errors.add("${testCase.name}: ${result.message}")
+                        metrics.add(ExecutionMetrics(
+                            testName = testCase.name,
+                            executionTime = 0,
+                            inputSize = testCase.dotContent.length,
+                            outputSize = 0,
+                            success = false
+                        ))
+                    }
+                }
+            } catch (e: Exception) {
+                errors.add("${testCase.name}: Unexpected error - ${e.message}")
+                metrics.add(ExecutionMetrics(
+                    testName = testCase.name,
+                    executionTime = 0,
+                    inputSize = testCase.dotContent.length,
+                    outputSize = 0,
+                    success = false
+                ))
+            }
         }
         
-        return results
+        val totalTime = System.currentTimeMillis() - startTime
+        
+        return BatchExecutionResult(
+            results = results,
+            metrics = metrics,
+            errors = errors,
+            totalExecutionTime = totalTime,
+            successCount = metrics.count { it.success },
+            failureCount = metrics.count { !it.success }
+        )
     }
     
     // Private helper methods
@@ -314,21 +369,48 @@ data class GraphvizOptions(
 }
 
 /**
- * Result of Graphviz execution.
+ * Result of Graphviz execution with enhanced metrics.
  */
 sealed class GraphvizExecutionResult {
     data class Success(
         val output: String,
         val stderr: String,
-        val executionTime: Long
+        val executionTime: Long,
+        val command: String,
+        val inputSize: Int
     ) : GraphvizExecutionResult()
     
     data class Error(
         val message: String,
         val stderr: String,
-        val exitCode: Int
+        val exitCode: Int,
+        val command: String,
+        val inputContent: String
     ) : GraphvizExecutionResult()
 }
+
+/**
+ * Batch execution result with detailed metrics.
+ */
+data class BatchExecutionResult(
+    val results: Map<String, GraphvizExecutionResult>,
+    val metrics: List<ExecutionMetrics>,
+    val errors: List<String>,
+    val totalExecutionTime: Long,
+    val successCount: Int,
+    val failureCount: Int
+)
+
+/**
+ * Execution metrics for individual test cases.
+ */
+data class ExecutionMetrics(
+    val testName: String,
+    val executionTime: Long,
+    val inputSize: Int,
+    val outputSize: Int,
+    val success: Boolean
+)
 
 /**
  * Result of command execution.
